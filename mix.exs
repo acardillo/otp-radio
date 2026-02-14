@@ -40,6 +40,7 @@ defmodule OtpRadio.MixProject do
   defp deps do
     [
       {:phoenix, "~> 1.8.3"},
+      {:phoenix_pubsub, "~> 2.1"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:jason, "~> 1.2"},
