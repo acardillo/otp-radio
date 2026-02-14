@@ -11,9 +11,7 @@ defmodule OtpRadio.Application do
       OtpRadioWeb.Telemetry,
       {DNSCluster, query: Application.get_env(:otp_radio, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: OtpRadio.PubSub},
-      # Start a worker by calling: OtpRadio.Worker.start_link(arg)
-      # {OtpRadio.Worker, arg},
-      # Start to serve requests, typically the last entry
+      OtpRadio.StationOne.Supervisor,
       OtpRadioWeb.Endpoint
     ]
 
