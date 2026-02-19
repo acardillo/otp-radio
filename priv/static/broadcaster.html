@@ -1,0 +1,182 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>OTP Radio - Broadcaster</title>
+    <style>
+      body {
+        font-family: monospace;
+        padding: 20px;
+        background: #1a1a1a;
+        color: #ff4400;
+      }
+      #status {
+        font-size: 20px;
+        margin-bottom: 20px;
+        padding: 10px;
+        border: 2px solid #ff4400;
+      }
+      button {
+        font-size: 18px;
+        padding: 15px 30px;
+        background: #ff4400;
+        color: #000;
+        border: none;
+        cursor: pointer;
+        font-family: monospace;
+        font-weight: bold;
+      }
+      button:disabled {
+        background: #666;
+        cursor: not-allowed;
+      }
+      #log {
+        height: 300px;
+        overflow-y: scroll;
+        border: 1px solid #ff4400;
+        padding: 10px;
+        background: #000;
+        margin-top: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>📡 OTP Radio - Broadcaster</h1>
+
+    <div id="status">Status: Not connected</div>
+
+    <button id="startBtn">Start Broadcasting</button>
+    <button id="stopBtn" disabled>Stop Broadcasting</button>
+
+    <div>
+      <h3>Broadcast Log:</h3>
+      <div id="log"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/phoenix@1.7.10/priv/static/phoenix.min.js"></script>
+
+    <script>
+      const statusEl = document.getElementById('status');
+      const logEl = document.getElementById('log');
+      const startBtn = document.getElementById('startBtn');
+      const stopBtn = document.getElementById('stopBtn');
+
+      let socket, channel, mediaRecorder, stream;
+      let chunksSent = 0;
+
+      function log(message) {
+        const div = document.createElement('div');
+        div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+        logEl.insertBefore(div, logEl.firstChild);
+      }
+
+      function updateStatus(status, color = '#ff4400') {
+        statusEl.textContent = `Status: ${status}`;
+        statusEl.style.borderColor = color;
+      }
+
+      startBtn.onclick = async () => {
+        try {
+          // Request microphone access
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              sampleRate: 48000,
+            },
+          });
+
+          log('Microphone access granted');
+
+          // Connect to WebSocket
+          socket = new Phoenix.Socket('/socket', {});
+          socket.connect();
+
+          channel = socket.channel('broadcaster:one', {});
+
+          await channel
+            .join()
+            .receive('ok', () => {
+              log('Connected to server');
+              updateStatus('Connected - Starting broadcast...', '#00ff00');
+              startBroadcast();
+            })
+            .receive('error', (resp) => {
+              log('Failed to connect: ' + JSON.stringify(resp));
+              updateStatus('Connection failed', '#ff0000');
+            });
+        } catch (err) {
+          log('Error: ' + err.message);
+          updateStatus('Microphone access denied', '#ff0000');
+        }
+      };
+
+      function startBroadcast() {
+        // Create MediaRecorder with Opus codec
+        const options = {
+          mimeType: 'audio/webm;codecs=opus',
+          audioBitsPerSecond: 64000,
+        };
+
+        mediaRecorder = new MediaRecorder(stream, options);
+
+        mediaRecorder.ondataavailable = async (event) => {
+          if (event.data.size > 0) {
+            // Convert Blob to Base64 string
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const base64 = reader.result.split(',')[1]; // Remove data:audio/webm;base64, prefix
+
+              // Send to server as base64 string
+              channel
+                .push('audio_chunk', { data: base64 })
+                .receive('ok', () => {
+                  chunksSent++;
+                  if (chunksSent % 10 === 0) {
+                    log(`Sent ${chunksSent} chunks`);
+                  }
+                })
+                .receive('error', (err) => {
+                  log('Send error: ' + JSON.stringify(err));
+                });
+            };
+            reader.readAsDataURL(event.data);
+          }
+        };
+
+        // Start recording in 100ms chunks
+        mediaRecorder.start(100);
+
+        updateStatus('🔴 LIVE - Broadcasting', '#ff0000');
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+
+        log('Broadcasting started (Opus @ 64kbps)');
+      }
+
+      stopBtn.onclick = () => {
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+          mediaRecorder.stop();
+        }
+
+        if (stream) {
+          stream.getTracks().forEach((track) => track.stop());
+        }
+
+        if (channel) {
+          channel.leave();
+        }
+
+        if (socket) {
+          socket.disconnect();
+        }
+
+        updateStatus('Stopped', '#666');
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+
+        log(`Broadcast ended. Total chunks sent: ${chunksSent}`);
+      };
+    </script>
+  </body>
+</html>

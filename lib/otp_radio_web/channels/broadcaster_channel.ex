@@ -16,15 +16,17 @@ defmodule OtpRadioWeb.BroadcasterChannel do
   end
 
   @impl true
-  def handle_in("audio_chunk", %{"data" => data}, socket) do
-    # Forward binary audio data to Broadcaster GenServer
-    OtpRadio.StationOne.Broadcaster.ingest_chunk(data)
+  @impl true
+  def handle_in("audio_chunk", %{"data" => base64_data}, socket) when is_binary(base64_data) do
+    # Decode base64 to binary
+    binary_data = Base.decode64!(base64_data)
+    OtpRadio.StationOne.Broadcaster.ingest_chunk(binary_data)
     {:reply, :ok, socket}
   end
 
   @impl true
   def handle_in("audio_chunk", _payload, socket) do
-    Logger.warning("Received audio_chunk without data field")
-    {:reply, {:error, %{reason: "missing data field"}}, socket}
+    Logger.warning("Received audio_chunk without valid data field")
+    {:reply, {:error, %{reason: "invalid data"}}, socket}
   end
 end

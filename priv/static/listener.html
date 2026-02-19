@@ -16,39 +16,59 @@
         padding: 10px;
         border: 2px solid #00ff00;
       }
+      button {
+        font-size: 18px;
+        padding: 15px 30px;
+        background: #00ff00;
+        color: #000;
+        border: none;
+        cursor: pointer;
+        font-family: monospace;
+        font-weight: bold;
+        margin-bottom: 20px;
+      }
+      audio {
+        width: 100%;
+        margin: 20px 0;
+      }
       #log {
-        height: 400px;
+        height: 300px;
         overflow-y: scroll;
         border: 1px solid #00ff00;
         padding: 10px;
         background: #000;
-      }
-      .chunk {
-        margin: 5px 0;
       }
     </style>
   </head>
   <body>
     <h1>🎵 OTP Radio - Station One</h1>
 
-    <div id="status">Status: Connecting...</div>
+    <div id="status">Status: Ready</div>
+
+    <button id="playBtn">▶ Start Listening</button>
+
+    <audio id="audioPlayer" controls></audio>
 
     <div>
-      <h3>Audio Chunks Received:</h3>
+      <h3>Stream Log:</h3>
       <div id="log"></div>
     </div>
 
-    <!-- Phoenix Socket Client -->
     <script src="https://cdn.jsdelivr.net/npm/phoenix@1.7.10/priv/static/phoenix.min.js"></script>
 
     <script>
       const statusEl = document.getElementById('status');
       const logEl = document.getElementById('log');
+      const playBtn = document.getElementById('playBtn');
+      const audioPlayer = document.getElementById('audioPlayer');
+
+      let mediaSource, sourceBuffer, channel;
+      let chunkQueue = [];
+      let isAppending = false;
       let chunkCount = 0;
 
       function log(message) {
         const div = document.createElement('div');
-        div.className = 'chunk';
         div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
         logEl.insertBefore(div, logEl.firstChild);
       }
@@ -58,46 +78,103 @@
         statusEl.style.borderColor = color;
       }
 
-      // Connect to WebSocket
-      const socket = new Phoenix.Socket('/socket', {});
-      socket.connect();
+      function appendNextChunk() {
+        if (isAppending || chunkQueue.length === 0) return;
+        if (!sourceBuffer || sourceBuffer.updating) return;
 
-      socket.onOpen(() => {
-        updateStatus('Connected to server', '#00ff00');
-        log('WebSocket connected');
-      });
+        isAppending = true;
+        const chunk = chunkQueue.shift();
 
-      socket.onError(() => {
-        updateStatus('Connection error', '#ff0000');
-        log('WebSocket error');
-      });
+        try {
+          sourceBuffer.appendBuffer(chunk);
+        } catch (e) {
+          log('Append error: ' + e.message);
+          isAppending = false;
+        }
+      }
 
-      socket.onClose(() => {
-        updateStatus('Disconnected', '#ff9900');
-        log('WebSocket closed');
-      });
+      playBtn.onclick = async () => {
+        playBtn.disabled = true;
 
-      // Join listener channel
-      const channel = socket.channel('listener:one', {});
+        // Create MediaSource
+        mediaSource = new MediaSource();
+        audioPlayer.src = URL.createObjectURL(mediaSource);
 
-      channel
-        .join()
-        .receive('ok', (resp) => {
-          updateStatus('Listening to Station One', '#00ff00');
-          log('Joined channel successfully');
-        })
-        .receive('error', (resp) => {
-          updateStatus('Failed to join channel', '#ff0000');
-          log('Join error: ' + JSON.stringify(resp));
+        mediaSource.addEventListener('sourceopen', () => {
+          log('MediaSource opened');
+
+          // Create SourceBuffer for Opus in WebM
+          sourceBuffer = mediaSource.addSourceBuffer('audio/webm; codecs="opus"');
+
+          sourceBuffer.addEventListener('updateend', () => {
+            isAppending = false;
+            appendNextChunk();
+
+            // Start playback if paused and we have enough buffered
+            if (audioPlayer.paused && sourceBuffer.buffered.length > 0) {
+              const buffered = sourceBuffer.buffered.end(0) - audioPlayer.currentTime;
+              if (buffered > 0.5) {
+                audioPlayer.play().catch((e) => log('Play error: ' + e.message));
+              }
+            }
+          });
+
+          sourceBuffer.addEventListener('error', (e) => {
+            log('SourceBuffer error');
+          });
+
+          updateStatus('MediaSource ready - connecting...', '#ffaa00');
         });
 
-      // Receive audio chunks
-      channel.on('audio', (payload) => {
-        chunkCount++;
-        log(
-          `Chunk #${payload.sequence} | Size: ${payload.size} bytes | Total received: ${chunkCount}`,
-        );
-      });
+        // Connect to WebSocket
+        const socket = new Phoenix.Socket('/socket', {});
+        socket.connect();
+
+        socket.onOpen(() => {
+          log('WebSocket connected');
+        });
+
+        // Join listener channel
+        channel = socket.channel('listener:one', {});
+
+        channel
+          .join()
+          .receive('ok', () => {
+            updateStatus('🔊 Streaming Station One', '#00ff00');
+            log('Joined channel - receiving audio...');
+          })
+          .receive('error', (resp) => {
+            updateStatus('Failed to join', '#ff0000');
+            log('Join error: ' + JSON.stringify(resp));
+          });
+
+        // Receive audio chunks
+        channel.on('audio', (payload) => {
+          chunkCount++;
+
+          // Decode base64 to ArrayBuffer
+          const binaryString = atob(payload.data);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+
+          // Add to queue
+          chunkQueue.push(bytes.buffer);
+
+          // Try to append
+          appendNextChunk();
+
+          // Log every 20 chunks
+          if (chunkCount % 20 === 0) {
+            const buffered =
+              sourceBuffer && sourceBuffer.buffered.length > 0
+                ? (sourceBuffer.buffered.end(0) - audioPlayer.currentTime).toFixed(1)
+                : '0';
+            log(`Chunk #${payload.sequence} | Queue: ${chunkQueue.length} | Buffer: ${buffered}s`);
+          }
+        });
+      };
     </script>
   </body>
 </html>
