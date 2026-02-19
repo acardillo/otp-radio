@@ -1,0 +1,103 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>OTP Radio - Listener</title>
+    <style>
+      body {
+        font-family: monospace;
+        padding: 20px;
+        background: #1a1a1a;
+        color: #00ff00;
+      }
+      #status {
+        font-size: 20px;
+        margin-bottom: 20px;
+        padding: 10px;
+        border: 2px solid #00ff00;
+      }
+      #log {
+        height: 400px;
+        overflow-y: scroll;
+        border: 1px solid #00ff00;
+        padding: 10px;
+        background: #000;
+      }
+      .chunk {
+        margin: 5px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>🎵 OTP Radio - Station One</h1>
+
+    <div id="status">Status: Connecting...</div>
+
+    <div>
+      <h3>Audio Chunks Received:</h3>
+      <div id="log"></div>
+    </div>
+
+    <!-- Phoenix Socket Client -->
+    <script src="https://cdn.jsdelivr.net/npm/phoenix@1.7.10/priv/static/phoenix.min.js"></script>
+
+    <script>
+      const statusEl = document.getElementById('status');
+      const logEl = document.getElementById('log');
+      let chunkCount = 0;
+
+      function log(message) {
+        const div = document.createElement('div');
+        div.className = 'chunk';
+        div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+        logEl.insertBefore(div, logEl.firstChild);
+      }
+
+      function updateStatus(status, color = '#00ff00') {
+        statusEl.textContent = `Status: ${status}`;
+        statusEl.style.borderColor = color;
+      }
+
+      // Connect to WebSocket
+      const socket = new Phoenix.Socket('/socket', {});
+      socket.connect();
+
+      socket.onOpen(() => {
+        updateStatus('Connected to server', '#00ff00');
+        log('WebSocket connected');
+      });
+
+      socket.onError(() => {
+        updateStatus('Connection error', '#ff0000');
+        log('WebSocket error');
+      });
+
+      socket.onClose(() => {
+        updateStatus('Disconnected', '#ff9900');
+        log('WebSocket closed');
+      });
+
+      // Join listener channel
+      const channel = socket.channel('listener:one', {});
+
+      channel
+        .join()
+        .receive('ok', (resp) => {
+          updateStatus('Listening to Station One', '#00ff00');
+          log('Joined channel successfully');
+        })
+        .receive('error', (resp) => {
+          updateStatus('Failed to join channel', '#ff0000');
+          log('Join error: ' + JSON.stringify(resp));
+        });
+
+      // Receive audio chunks
+      channel.on('audio', (payload) => {
+        chunkCount++;
+        log(
+          `Chunk #${payload.sequence} | Size: ${payload.size} bytes | Total received: ${chunkCount}`,
+        );
+      });
+    </script>
+  </body>
+</html>
