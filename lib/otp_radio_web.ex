@@ -17,7 +17,8 @@ defmodule OtpRadioWeb do
   those modules here.
   """
 
-  def static_paths, do: ~w(assets fonts images favicon.ico robots.txt listener.html broadcaster.html)
+  def static_paths,
+    do: ~w(assets fonts images favicon.ico robots.txt listener.html broadcaster.html)
 
   def router do
     quote do

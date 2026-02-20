@@ -16,7 +16,6 @@ defmodule OtpRadioWeb.BroadcasterChannel do
   end
 
   @impl true
-  @impl true
   def handle_in("audio_chunk", %{"data" => base64_data}, socket) when is_binary(base64_data) do
     # Decode base64 to binary
     binary_data = Base.decode64!(base64_data)

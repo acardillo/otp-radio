@@ -17,10 +17,16 @@ defmodule OtpRadioWeb.ListenerChannel do
     # Subscribe to PubSub audio topic
     Phoenix.PubSub.subscribe(OtpRadio.PubSub, "station:one:audio")
 
-    # Get buffered chunks for catch-up
+    # Defer push and listener count to after join (push/3 not allowed during join)
+    send(self(), :after_join)
+
+    {:ok, socket}
+  end
+
+  @impl true
+  def handle_info(:after_join, socket) do
     buffer = OtpRadio.StationOne.Distributor.get_buffer()
 
-    # Send buffered chunks immediately
     Enum.each(buffer, fn chunk ->
       push(socket, "audio", %{
         data: Base.encode64(chunk.data),
@@ -29,12 +35,10 @@ defmodule OtpRadioWeb.ListenerChannel do
       })
     end)
 
-    # Increment listener count
     OtpRadio.StationOne.Server.increment_listeners()
-
     Logger.info("Sent #{length(buffer)} buffered chunks to listener")
 
-    {:ok, socket}
+    {:noreply, socket}
   end
 
   @impl true
