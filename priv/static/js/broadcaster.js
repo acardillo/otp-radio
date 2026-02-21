@@ -19,7 +19,6 @@
   var logEl = document.getElementById("log");
   var startBtn = document.getElementById("startBtn");
   var stopBtn = document.getElementById("stopBtn");
-  var restartBtn = document.getElementById("restartBtn");
   var bitrateSelect = document.getElementById("bitrateSelect");
   var noiseSuppression = document.getElementById("noiseSuppression");
   var echoCancellation = document.getElementById("echoCancellation");
@@ -128,7 +127,6 @@
     setStatus("LIVE – Broadcasting", "live");
     startBtn.disabled = true;
     stopBtn.disabled = false;
-    restartBtn.disabled = true;
     log("Broadcasting started (Opus @ " + getBitrate() / 1000 + " kbps, " + CHUNK_MS + "ms chunks)");
   }
 
@@ -223,17 +221,10 @@
     setStatus("Stopped", "");
     startBtn.disabled = false;
     stopBtn.disabled = true;
-    restartBtn.disabled = true;
     listenerCount = 0;
     chunksSent = 0;
     updateStats();
     log("Broadcast ended. Chunks sent: " + chunksSent);
   });
 
-  restartBtn.addEventListener("click", function () {
-    stopBtn.click();
-    setTimeout(function () {
-      startBtn.click();
-    }, 300);
-  });
 })();

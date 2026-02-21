@@ -19,7 +19,6 @@
   var queueLenEl = document.getElementById("queueLen");
   var logEl = document.getElementById("log");
   var playBtn = document.getElementById("playBtn");
-  var restartBtn = document.getElementById("restartBtn");
   var audioPlayer = document.getElementById("audioPlayer");
 
   var mediaSource, sourceBuffer, socket, channel;
@@ -211,7 +210,6 @@
 
   audioPlayer.addEventListener("playing", function () {
     setStatus("Live", "live");
-    restartBtn.disabled = false;
     startLatencySampling();
   });
 
@@ -219,35 +217,5 @@
 
   playBtn.addEventListener("click", function () {
     startListening();
-  });
-
-  restartBtn.addEventListener("click", function () {
-    if (latencySampleIntervalId) {
-      clearInterval(latencySampleIntervalId);
-      latencySampleIntervalId = null;
-    }
-    if (channel) channel.leave();
-    if (socket) socket.disconnect();
-    if (mediaSource && mediaSource.readyState === "open") {
-      try {
-        sourceBuffer.abort();
-      } catch (_) {}
-      try {
-        mediaSource.endOfStream();
-      } catch (_) {}
-    }
-    audioPlayer.src = "";
-    chunkQueue = [];
-    isAppending = false;
-    lastSequence = -1;
-    chunksInLastSecond = 0;
-    setStatus("Ready", "");
-    bufferSecEl.textContent = "0";
-    chunksPerSecEl.textContent = "0";
-    latencyMsEl.textContent = "—";
-    queueLenEl.textContent = "0";
-    playBtn.disabled = false;
-    restartBtn.disabled = true;
-    setTimeout(startListening, 200);
   });
 })();
