@@ -28,4 +28,10 @@ defmodule OtpRadioWeb.BroadcasterChannel do
     Logger.warning("Received audio_chunk without valid data field")
     {:reply, {:error, %{reason: "invalid data"}}, socket}
   end
+
+  @impl true
+  def handle_in("listener_count", _params, socket) do
+    %{listener_count: count} = OtpRadio.StationOne.Server.get_status()
+    {:reply, {:ok, %{count: count}}, socket}
+  end
 end

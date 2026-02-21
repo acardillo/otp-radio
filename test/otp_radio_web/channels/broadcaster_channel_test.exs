@@ -33,4 +33,12 @@ defmodule OtpRadioWeb.BroadcasterChannelTest do
       assert_reply ref, :error, %{reason: "invalid data"}
     end
   end
+
+  describe "handle_in listener_count" do
+    test "replies with current listener count from server", %{socket: socket} do
+      expected = OtpRadio.StationOne.Server.get_status().listener_count
+      ref = push(socket, "listener_count", %{})
+      assert_reply ref, :ok, %{count: ^expected}
+    end
+  end
 end

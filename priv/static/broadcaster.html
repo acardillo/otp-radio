@@ -1,181 +1,393 @@
 <!doctype html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>OTP Radio - Broadcaster</title>
     <style>
-      body {
-        font-family: monospace;
-        padding: 20px;
-        background: #1a1a1a;
-        color: #ff4400;
+      :root {
+        --bg: #0d0d0d;
+        --panel: #1a1a1a;
+        --accent: #ff4400;
+        --accent-dim: #cc3300;
+        --live: #00c853;
+        --warn: #ffab00;
+        --error: #ff1744;
+        --text: #e0e0e0;
+        --text-dim: #888;
       }
-      #status {
-        font-size: 20px;
+      * { box-sizing: border-box; }
+      body {
+        font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+        padding: 24px;
+        background: var(--bg);
+        color: var(--text);
+        max-width: 720px;
+        margin: 0 auto;
+      }
+      h1 { font-size: 1.5rem; color: var(--accent); margin-bottom: 8px; }
+      .status-bar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        background: var(--panel);
+        border: 2px solid var(--accent);
+        border-radius: 8px;
         margin-bottom: 20px;
-        padding: 10px;
-        border: 2px solid #ff4400;
+      }
+      .status-dot {
+        width: 12px; height: 12px;
+        border-radius: 50%;
+        background: var(--text-dim);
+        flex-shrink: 0;
+      }
+      .status-dot.live { background: var(--live); box-shadow: 0 0 8px var(--live); }
+      .status-dot.reconnecting { background: var(--warn); animation: pulse 1s infinite; }
+      .status-dot.failed { background: var(--error); }
+      @keyframes pulse { 50% { opacity: 0.5; } }
+      .status-text { font-size: 1rem; font-weight: 600; }
+      .stats {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        margin-bottom: 20px;
+        font-size: 0.85rem;
+        color: var(--text-dim);
+      }
+      .stats span strong { color: var(--text); }
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 20px;
       }
       button {
-        font-size: 18px;
-        padding: 15px 30px;
-        background: #ff4400;
+        font-size: 0.95rem;
+        padding: 12px 24px;
+        background: var(--accent);
         color: #000;
         border: none;
+        border-radius: 6px;
         cursor: pointer;
-        font-family: monospace;
-        font-weight: bold;
+        font-family: inherit;
+        font-weight: 600;
       }
-      button:disabled {
-        background: #666;
-        cursor: not-allowed;
+      button:hover:not(:disabled) { background: #ff6622; }
+      button:disabled { background: #444; cursor: not-allowed; color: #666; }
+      button.secondary {
+        background: transparent;
+        color: var(--accent);
+        border: 1px solid var(--accent);
       }
+      button.secondary:hover:not(:disabled) { background: rgba(255,68,0,0.15); }
+      .vu-wrap {
+        width: 100%;
+        max-width: 200px;
+        height: 24px;
+        background: var(--panel);
+        border-radius: 4px;
+        overflow: hidden;
+      }
+      .vu-fill {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, var(--live), var(--warn));
+        border-radius: 4px;
+        transition: width 0.05s ease-out;
+      }
+      label { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; cursor: pointer; }
+      select {
+        background: var(--panel);
+        color: var(--text);
+        border: 1px solid #333;
+        border-radius: 4px;
+        padding: 8px 12px;
+        font-family: inherit;
+        font-size: 0.9rem;
+      }
+      .section { margin-bottom: 20px; }
+      .section h3 { font-size: 0.9rem; color: var(--text-dim); margin-bottom: 8px; }
       #log {
-        height: 300px;
-        overflow-y: scroll;
-        border: 1px solid #ff4400;
-        padding: 10px;
+        height: 220px;
+        overflow-y: auto;
+        border: 1px solid #333;
+        border-radius: 6px;
+        padding: 12px;
         background: #000;
-        margin-top: 20px;
+        font-size: 0.8rem;
+      }
+      #log .error { color: var(--error); }
+      #log .warn { color: var(--warn); }
+      [data-tooltip] { position: relative; }
+      [data-tooltip]:hover::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        bottom: 100%; left: 50%;
+        transform: translateX(-50%);
+        padding: 4px 8px;
+        background: #333;
+        color: #fff;
+        font-size: 0.75rem;
+        white-space: nowrap;
+        border-radius: 4px;
+        margin-bottom: 4px;
       }
     </style>
   </head>
   <body>
-    <h1>📡 OTP Radio - Broadcaster</h1>
+    <h1>OTP Radio – Broadcaster</h1>
 
-    <div id="status">Status: Not connected</div>
+    <div class="status-bar" id="statusBar">
+      <span class="status-dot" id="statusDot"></span>
+      <span class="status-text" id="statusText">Not connected</span>
+    </div>
 
-    <button id="startBtn">Start Broadcasting</button>
-    <button id="stopBtn" disabled>Stop Broadcasting</button>
+    <div class="stats" id="stats">
+      <span>Listeners: <strong id="listenerCount">0</strong></span>
+      <span>Chunks sent: <strong id="chunksSent">0</strong></span>
+      <span>Level: <strong id="vuLevel">—</strong></span>
+    </div>
 
-    <div>
-      <h3>Broadcast Log:</h3>
+    <div class="controls">
+      <button id="startBtn" data-tooltip="Request mic and start streaming">Start Broadcasting</button>
+      <button id="stopBtn" disabled>Stop Broadcasting</button>
+      <button id="restartBtn" class="secondary" disabled data-tooltip="Reconnect and restart stream">Restart Stream</button>
+      <div class="vu-wrap" title="Microphone level">
+        <div class="vu-fill" id="vuFill"></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Audio</h3>
+      <div class="controls">
+        <label>
+          Bitrate
+          <select id="bitrateSelect">
+            <option value="32000">32 kbps</option>
+            <option value="64000" selected>64 kbps</option>
+            <option value="128000">128 kbps</option>
+          </select>
+        </label>
+        <label><input type="checkbox" id="noiseSuppression" checked /> Noise suppression</label>
+        <label><input type="checkbox" id="echoCancellation" checked /> Echo cancellation</label>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Broadcast log</h3>
       <div id="log"></div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/phoenix@1.7.10/priv/static/phoenix.min.js"></script>
-
     <script>
-      const statusEl = document.getElementById('status');
+      // --- Config: latency target <1s. 250ms chunks balance MSE compatibility and latency (200ms works in Chrome/Firefox; 250ms safer for Safari).
+      const CHUNK_MS = 250;
+
+      const statusBar = document.getElementById('statusBar');
+      const statusDot = document.getElementById('statusDot');
+      const statusText = document.getElementById('statusText');
+      const listenerCountEl = document.getElementById('listenerCount');
+      const chunksSentEl = document.getElementById('chunksSent');
+      const vuLevelEl = document.getElementById('vuLevel');
+      const vuFill = document.getElementById('vuFill');
       const logEl = document.getElementById('log');
       const startBtn = document.getElementById('startBtn');
       const stopBtn = document.getElementById('stopBtn');
+      const restartBtn = document.getElementById('restartBtn');
+      const bitrateSelect = document.getElementById('bitrateSelect');
+      const noiseSuppression = document.getElementById('noiseSuppression');
+      const echoCancellation = document.getElementById('echoCancellation');
 
-      let socket, channel, mediaRecorder, stream;
+      let socket, channel, mediaRecorder, stream, audioContext, analyser, intervalIds = [];
       let chunksSent = 0;
+      let listenerCount = 0;
 
-      function log(message) {
+      function log(message, type = '') {
         const div = document.createElement('div');
+        div.className = type;
         div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
         logEl.insertBefore(div, logEl.firstChild);
       }
 
-      function updateStatus(status, color = '#ff4400') {
-        statusEl.textContent = `Status: ${status}`;
-        statusEl.style.borderColor = color;
+      function setStatus(text, state) {
+        statusText.textContent = text;
+        statusDot.className = 'status-dot' + (state ? ' ' + state : '');
       }
 
-      startBtn.onclick = async () => {
-        try {
-          // Request microphone access
-          stream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-              echoCancellation: true,
-              noiseSuppression: true,
-              sampleRate: 48000,
-            },
-          });
+      function updateStats() {
+        chunksSentEl.textContent = chunksSent;
+        listenerCountEl.textContent = listenerCount;
+      }
 
-          log('Microphone access granted');
+      function startVuMeter(stream) {
+        if (audioContext) try { audioContext.close(); } catch (_) {}
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const src = audioContext.createMediaStreamSource(stream);
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 256;
+        analyser.smoothingTimeConstant = 0.8;
+        src.connect(analyser);
+        const data = new Uint8Array(analyser.frequencyBinCount);
+        const tick = () => {
+          if (!analyser) return;
+          analyser.getByteFrequencyData(data);
+          const avg = data.reduce((a, b) => a + b, 0) / data.length;
+          const pct = Math.min(100, (avg / 128) * 100);
+          vuFill.style.width = pct + '%';
+          vuLevelEl.textContent = Math.round(pct) + '%';
+        };
+        const id = setInterval(tick, 100);
+        intervalIds.push(id);
+      }
 
-          // Connect to WebSocket
-          socket = new Phoenix.Socket('/socket', {});
-          socket.connect();
+      function clearIntervals() {
+        intervalIds.forEach(id => clearInterval(id));
+        intervalIds = [];
+      }
 
-          channel = socket.channel('broadcaster:one', {});
+      function getAudioOptions() {
+        return {
+          echoCancellation: echoCancellation.checked,
+          noiseSuppression: noiseSuppression.checked,
+          sampleRate: 48000,
+        };
+      }
 
-          await channel
-            .join()
-            .receive('ok', () => {
-              log('Connected to server');
-              updateStatus('Connected - Starting broadcast...', '#00ff00');
-              startBroadcast();
-            })
-            .receive('error', (resp) => {
-              log('Failed to connect: ' + JSON.stringify(resp));
-              updateStatus('Connection failed', '#ff0000');
-            });
-        } catch (err) {
-          log('Error: ' + err.message);
-          updateStatus('Microphone access denied', '#ff0000');
-        }
-      };
+      function getBitrate() {
+        return parseInt(bitrateSelect.value, 10);
+      }
 
-      function startBroadcast() {
-        // Create MediaRecorder with Opus codec
+      async function startBroadcast() {
         const options = {
           mimeType: 'audio/webm;codecs=opus',
-          audioBitsPerSecond: 64000,
+          audioBitsPerSecond: getBitrate(),
         };
-
+        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+          log('audio/webm;codecs=opus not supported', 'error');
+          setStatus('Codec not supported', 'failed');
+          return;
+        }
         mediaRecorder = new MediaRecorder(stream, options);
-
         mediaRecorder.ondataavailable = async (event) => {
           if (event.data.size > 0) {
-            // Convert Blob to Base64 string
             const reader = new FileReader();
             reader.onloadend = () => {
-              const base64 = reader.result.split(',')[1]; // Remove data:audio/webm;base64, prefix
-
-              // Send to server as base64 string
+              const base64 = reader.result.split(',')[1];
               channel
                 .push('audio_chunk', { data: base64 })
                 .receive('ok', () => {
                   chunksSent++;
-                  if (chunksSent % 10 === 0) {
-                    log(`Sent ${chunksSent} chunks`);
-                  }
+                  updateStats();
+                  if (chunksSent % 20 === 0) log(`Sent ${chunksSent} chunks`);
                 })
                 .receive('error', (err) => {
-                  log('Send error: ' + JSON.stringify(err));
+                  log('Send error: ' + JSON.stringify(err), 'error');
                 });
             };
             reader.readAsDataURL(event.data);
           }
         };
-
-        // Start recording in 100ms chunks
-        mediaRecorder.start(100);
-
-        updateStatus('🔴 LIVE - Broadcasting', '#ff0000');
+        mediaRecorder.onerror = (e) => {
+          log('MediaRecorder error: ' + (e.error && e.error.message || 'unknown'), 'error');
+          setStatus('Recording error', 'failed');
+        };
+        // Chunk interval: CHUNK_MS (250ms) for lower latency; MSE handles WebM fragments at this size.
+        mediaRecorder.start(CHUNK_MS);
+        setStatus('LIVE – Broadcasting', 'live');
         startBtn.disabled = true;
         stopBtn.disabled = false;
-
-        log('Broadcasting started (Opus @ 64kbps)');
+        restartBtn.disabled = true;
+        log(`Broadcasting started (Opus @ ${getBitrate()/1000} kbps, ${CHUNK_MS}ms chunks)`);
       }
 
+      function connectAndJoin() {
+        return new Promise((resolve, reject) => {
+          socket = new Phoenix.Socket('/socket', { params: {} });
+          socket.onOpen(() => {
+            setStatus('Connected – Starting broadcast...', 'live');
+            // If we were broadcasting and this is a reconnect, re-join channel so pushes go to new channel
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+              channel = socket.channel('broadcaster:one', {});
+              channel.join().receive('ok', () => {
+                setStatus('LIVE – Broadcasting', 'live');
+                log('Reconnected and re-joined channel');
+              }).receive('error', (r) => log('Re-join failed: ' + JSON.stringify(r), 'error'));
+            }
+          });
+          socket.onError(() => setStatus('Connection error', 'failed'));
+          socket.onClose(() => {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') setStatus('Reconnecting...', 'reconnecting');
+          });
+          socket.connect();
+          channel = socket.channel('broadcaster:one', {});
+          channel.onClose(() => {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') setStatus('Channel closed', 'failed');
+          });
+          channel.onError(() => setStatus('Channel error', 'failed'));
+          channel
+            .join()
+            .receive('ok', () => {
+              log('Joined broadcaster channel');
+              resolve();
+            })
+            .receive('error', (resp) => {
+              log('Join failed: ' + JSON.stringify(resp), 'error');
+              reject(new Error(resp.reason || 'join failed'));
+            });
+        });
+      }
+
+      function pollListenerCount() {
+        if (!channel || !channel.canPush?.()) return;
+        channel.push('listener_count', {}).receive('ok', ({ count }) => {
+          listenerCount = count;
+          updateStats();
+        });
+      }
+
+      startBtn.onclick = async () => {
+        setStatus('Connecting...', '');
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ audio: getAudioOptions() });
+          log('Microphone access granted');
+          await connectAndJoin();
+          startVuMeter(stream);
+          await startBroadcast();
+          const pollId = setInterval(pollListenerCount, 2000);
+          intervalIds.push(pollId);
+        } catch (err) {
+          if (err.name === 'NotAllowedError') {
+            setStatus('Microphone access denied', 'failed');
+            log('Microphone permission denied. Enable it in browser settings.', 'error');
+          } else {
+            setStatus('Failed to start', 'failed');
+            log('Error: ' + err.message, 'error');
+          }
+          startBtn.disabled = false;
+        }
+      };
+
       stopBtn.onclick = () => {
-        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-          mediaRecorder.stop();
-        }
-
-        if (stream) {
-          stream.getTracks().forEach((track) => track.stop());
-        }
-
-        if (channel) {
-          channel.leave();
-        }
-
-        if (socket) {
-          socket.disconnect();
-        }
-
-        updateStatus('Stopped', '#666');
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+        if (stream) stream.getTracks().forEach((t) => t.stop());
+        clearIntervals();
+        if (channel) channel.leave();
+        if (socket) socket.disconnect();
+        setStatus('Stopped', '');
         startBtn.disabled = false;
         stopBtn.disabled = true;
+        restartBtn.disabled = true;
+        listenerCount = 0;
+        chunksSent = 0;
+        updateStats();
+        log(`Broadcast ended. Chunks sent: ${chunksSent}`);
+      };
 
-        log(`Broadcast ended. Total chunks sent: ${chunksSent}`);
+      restartBtn.onclick = () => {
+        stopBtn.click();
+        setTimeout(() => startBtn.click(), 300);
       };
     </script>
   </body>
