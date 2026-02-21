@@ -36,6 +36,16 @@ defmodule OtpRadio.StationOne.Broadcaster do
     GenServer.cast(__MODULE__, {:ingest_chunk, chunk})
   end
 
+  @doc """
+  Resets the sequence number to 0.
+
+  Called when the broadcaster (re)joins the channel so the first chunk
+  of a new stream is sequence 0 and can be used as the WebM init segment.
+  """
+  def reset_sequence do
+    GenServer.cast(__MODULE__, :reset_sequence)
+  end
+
   # Server Callbacks
 
   @impl true
@@ -74,5 +84,10 @@ defmodule OtpRadio.StationOne.Broadcaster do
 
         {:noreply, %{state | sequence: state.sequence + 1, connected: true}}
     end
+  end
+
+  @impl true
+  def handle_cast(:reset_sequence, state) do
+    {:noreply, %{state | sequence: 0}}
   end
 end

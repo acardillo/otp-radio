@@ -29,6 +29,7 @@
   var chunksInLastSecond = 0;
   var lastSecondTime = Date.now();
   var latencySampleIntervalId = null;
+  var sourceBufferErrorCount = 0;
 
   function log(message, type) {
     type = type || "";
@@ -51,7 +52,7 @@
       lastSecondTime = now;
     }
     queueLenEl.textContent = chunkQueue.length;
-    if (sourceBuffer && sourceBuffer.buffered.length > 0) {
+    if (isSourceUsable() && sourceBuffer.buffered.length > 0) {
       var bufEnd = sourceBuffer.buffered.end(0);
       var current = audioPlayer.currentTime;
       var bufferedAhead = Math.max(0, bufEnd - current);
@@ -60,21 +61,28 @@
   }
 
   function estimateLatencyMs() {
-    if (!sourceBuffer || sourceBuffer.buffered.length === 0) return null;
+    if (!isSourceUsable() || sourceBuffer.buffered.length === 0) return null;
     return Math.round((sourceBuffer.buffered.end(0) - audioPlayer.currentTime) * 1000);
+  }
+
+  function isSourceUsable() {
+    return mediaSource && mediaSource.readyState === "open" && sourceBuffer;
   }
 
   function appendNextChunk() {
     if (isAppending || chunkQueue.length === 0) return;
-    if (!sourceBuffer || sourceBuffer.updating) return;
+    if (!isSourceUsable() || sourceBuffer.updating) return;
     var chunk = chunkQueue.shift();
     if (!chunk) return;
     isAppending = true;
     try {
       sourceBuffer.appendBuffer(chunk.buffer);
     } catch (e) {
-      log("Append error: " + e.message, "error");
       isAppending = false;
+      if (e.message && e.message.indexOf("removed from the parent") !== -1) {
+        return;
+      }
+      log("Append error: " + e.message, "error");
     }
   }
 
@@ -142,6 +150,14 @@
       }
       lastSequence = seq;
 
+      if (seq === 0 && isSourceUsable() && sourceBuffer.buffered.length > 0) {
+        try {
+          sourceBuffer.abort();
+        } catch (_) {}
+        chunkQueue = [];
+        isAppending = false;
+      }
+
       var binaryString = atob(payload.data);
       var bytes = new Uint8Array(binaryString.length);
       for (var i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
@@ -160,6 +176,29 @@
 
   function startListening() {
     if (!ensureMSE()) return;
+    if (mediaSource && mediaSource.readyState !== "closed") {
+      try {
+        if (mediaSource.readyState === "open" && mediaSource.sourceBuffers.length > 0) {
+          mediaSource.sourceBuffers[0].abort();
+        }
+        mediaSource.endOfStream();
+      } catch (_) {}
+      mediaSource = null;
+      sourceBuffer = null;
+      chunkQueue = [];
+      isAppending = false;
+    }
+    if (channel) channel.leave();
+    if (socket) socket.disconnect();
+    socket = null;
+    channel = null;
+    lastSequence = -1;
+    chunksInLastSecond = 0;
+    if (latencySampleIntervalId) {
+      clearInterval(latencySampleIntervalId);
+      latencySampleIntervalId = null;
+    }
+    sourceBufferErrorCount = 0;
     playBtn.disabled = true;
     setStatus("Opening stream...", "buffering");
     mediaSource = new MediaSource();
@@ -172,22 +211,30 @@
 
       sourceBuffer.addEventListener("updateend", function () {
         isAppending = false;
+        if (!isSourceUsable()) return;
         appendNextChunk();
-        var bufSec =
-          sourceBuffer.buffered.length > 0
-            ? sourceBuffer.buffered.end(0) - audioPlayer.currentTime
-            : 0;
-        if (audioPlayer.paused && bufSec >= START_BUFFER_SEC) {
-          audioPlayer.play().catch(function (e) {
-            log("Play error: " + e.message, "error");
-          });
-          setStatus("Live", "live");
+        if (sourceBuffer.buffered.length > 0) {
+          var bufSec = sourceBuffer.buffered.end(0) - audioPlayer.currentTime;
+          if (audioPlayer.paused && bufSec >= START_BUFFER_SEC) {
+            audioPlayer.play().catch(function (e) {
+              log("Play error: " + e.message, "error");
+            });
+            setStatus("Live", "live");
+          }
         }
       });
 
       sourceBuffer.addEventListener("error", function () {
-        log("SourceBuffer error", "error");
-        setStatus("Playback error", "failed");
+        sourceBufferErrorCount++;
+        if (sourceBufferErrorCount === 1) {
+          log("Stream error (recovering…)", "warn");
+        }
+        if (!mediaSource || mediaSource.readyState !== "open" || !sourceBuffer) return;
+        try {
+          sourceBuffer.abort();
+        } catch (_) {}
+        isAppending = false;
+        appendNextChunk();
       });
 
       setStatus("Connecting...", "buffering");

@@ -12,6 +12,9 @@ defmodule OtpRadioWeb.BroadcasterChannel do
   @impl true
   def join("broadcaster:" <> _station_id, _params, socket) do
     Logger.info("Broadcaster connected")
+    # New stream: reset sequence so first chunk is 0 (init), and clear stale buffer for new listeners
+    OtpRadio.StationOne.Broadcaster.reset_sequence()
+    OtpRadio.StationOne.Distributor.clear_buffer()
     {:ok, socket}
   end
 
