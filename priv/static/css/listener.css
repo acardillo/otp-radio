@@ -1,0 +1,22 @@
+/* Listener page: green accent and audio element */
+
+:root {
+  --accent: #00c853;
+}
+
+button:hover:not(:disabled) {
+  background: #00e064;
+}
+
+button.secondary:hover:not(:disabled) {
+  background: rgba(0, 200, 83, 0.15);
+}
+
+.stats {
+  margin-bottom: 16px;
+}
+
+audio {
+  width: 100%;
+  margin: 12px 0;
+}

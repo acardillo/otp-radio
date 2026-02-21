@@ -1,0 +1,176 @@
+/* Shared layout and components for broadcaster and listener pages.
+   Page-specific CSS overrides --accent and adds unique elements (e.g. VU meter). */
+
+:root {
+  --bg: #0d0d0d;
+  --panel: #1a1a1a;
+  --accent-dim: #888;
+  --warn: #ffab00;
+  --error: #ff1744;
+  --text: #e0e0e0;
+  --text-dim: #888;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "SF Mono", Monaco, Consolas, monospace;
+  padding: 24px;
+  background: var(--bg);
+  color: var(--text);
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+h1 {
+  font-size: 1.5rem;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--panel);
+  border: 2px solid var(--accent);
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.status-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.status-dot.live {
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+}
+
+.status-dot.reconnecting,
+.status-dot.buffering {
+  background: var(--warn);
+  animation: pulse 1s infinite;
+}
+
+.status-dot.failed {
+  background: var(--error);
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.status-text {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 20px;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.stats span strong {
+  color: var(--text);
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+button {
+  font-size: 0.95rem;
+  padding: 12px 24px;
+  background: var(--accent);
+  color: #000;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+}
+
+button:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+button:disabled {
+  background: #444;
+  cursor: not-allowed;
+  color: #666;
+}
+
+button.secondary {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+
+button.secondary:hover:not(:disabled) {
+  background: rgba(128, 128, 128, 0.2);
+}
+
+.section {
+  margin-bottom: 20px;
+}
+
+.section h3 {
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+
+#log {
+  height: 220px;
+  overflow-y: auto;
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 12px;
+  background: #000;
+  font-size: 0.8rem;
+}
+
+#log .error {
+  color: var(--error);
+}
+
+#log .warn {
+  color: var(--warn);
+}
+
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 8px;
+  background: #333;
+  color: #fff;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  border-radius: 4px;
+  margin-bottom: 4px;
+}

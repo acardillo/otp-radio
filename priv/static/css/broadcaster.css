@@ -1,0 +1,48 @@
+/* Broadcaster page: orange accent and VU meter / audio controls */
+
+:root {
+  --accent: #ff4400;
+}
+
+button:hover:not(:disabled) {
+  background: #ff6622;
+}
+
+button.secondary:hover:not(:disabled) {
+  background: rgba(255, 68, 0, 0.15);
+}
+
+.vu-wrap {
+  width: 100%;
+  max-width: 200px;
+  height: 24px;
+  background: var(--panel);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.vu-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #00c853, var(--warn));
+  border-radius: 4px;
+  transition: width 0.05s ease-out;
+}
+
+label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+select {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-family: inherit;
+  font-size: 0.9rem;
+}
