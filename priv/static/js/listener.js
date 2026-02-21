@@ -21,6 +21,7 @@
   var playBtn = document.getElementById("playBtn");
   var audioPlayer = document.getElementById("audioPlayer");
 
+  var stationSelectEl = document.getElementById("stationSelect");
   var mediaSource, sourceBuffer, socket, channel;
   var chunkQueue = [];
   var isAppending = false;
@@ -67,6 +68,34 @@
 
   function isSourceUsable() {
     return mediaSource && mediaSource.readyState === "open" && sourceBuffer;
+  }
+
+  function getSelectedStationId() {
+    if (!stationSelectEl || !stationSelectEl.value) return null;
+    return stationSelectEl.value.trim() || null;
+  }
+
+  function loadStations() {
+    if (!stationSelectEl) return;
+    stationSelectEl.innerHTML = "<option value=\"\">Loading…</option>";
+    fetch("/api/stations")
+      .then(function (r) { return r.json(); })
+      .then(function (stations) {
+        stationSelectEl.innerHTML = "";
+        if (stations.length === 0) {
+          stationSelectEl.innerHTML = "<option value=\"\">No stations</option>";
+          return;
+        }
+        stations.forEach(function (s) {
+          var opt = document.createElement("option");
+          opt.value = s.id;
+          opt.textContent = s.name;
+          stationSelectEl.appendChild(opt);
+        });
+      })
+      .catch(function () {
+        stationSelectEl.innerHTML = "<option value=\"\">Failed to load</option>";
+      });
   }
 
   function appendNextChunk() {
@@ -118,7 +147,14 @@
       }
     });
 
-    channel = socket.channel("listener:one", {});
+    var stationId = getSelectedStationId();
+    if (!stationId) {
+      setStatus("Select a station", "failed");
+      log("Select a station from the dropdown", "error");
+      playBtn.disabled = false;
+      return;
+    }
+    channel = socket.channel("listener:" + stationId, {});
     channel.onClose(function () {
       setStatus("Channel closed", "failed");
     });
@@ -265,4 +301,6 @@
   playBtn.addEventListener("click", function () {
     startListening();
   });
+
+  if (stationSelectEl) loadStations();
 })();

@@ -17,11 +17,11 @@
   var vuLevelEl = document.getElementById("vuLevel");
   var vuFill = document.getElementById("vuFill");
   var logEl = document.getElementById("log");
-  var startBtn = document.getElementById("startBtn");
-  var stopBtn = document.getElementById("stopBtn");
+  var broadcastBtn = document.getElementById("broadcastBtn");
   var bitrateSelect = document.getElementById("bitrateSelect");
   var noiseSuppression = document.getElementById("noiseSuppression");
   var echoCancellation = document.getElementById("echoCancellation");
+  var stationSelectEl = document.getElementById("stationSelect");
 
   var socket, channel, mediaRecorder, stream, audioContext, analyser;
   var intervalIds = [];
@@ -125,18 +125,50 @@
     };
     mediaRecorder.start(CHUNK_MS);
     setStatus("LIVE – Broadcasting", "live");
-    startBtn.disabled = true;
-    stopBtn.disabled = false;
+    broadcastBtn.textContent = "Stop";
+    broadcastBtn.disabled = false;
     log("Broadcasting started (Opus @ " + getBitrate() / 1000 + " kbps, " + CHUNK_MS + "ms chunks)");
   }
 
+  function getStationId() {
+    if (!stationSelectEl || !stationSelectEl.value) return null;
+    return stationSelectEl.value.trim() || null;
+  }
+
+  function loadStations() {
+    if (!stationSelectEl) return;
+    stationSelectEl.innerHTML = "<option value=\"\">Loading…</option>";
+    fetch("/api/stations")
+      .then(function (r) { return r.json(); })
+      .then(function (stations) {
+        stationSelectEl.innerHTML = "";
+        if (stations.length === 0) {
+          stationSelectEl.innerHTML = "<option value=\"\">No stations</option>";
+          return;
+        }
+        stations.forEach(function (s) {
+          var opt = document.createElement("option");
+          opt.value = s.id;
+          opt.textContent = s.name;
+          stationSelectEl.appendChild(opt);
+        });
+      })
+      .catch(function () {
+        stationSelectEl.innerHTML = "<option value=\"\">Failed to load</option>";
+      });
+  }
+
   function connectAndJoin() {
+    var stationId = getStationId();
+    if (!stationId) {
+      return Promise.reject(new Error("Select a station"));
+    }
     return new Promise(function (resolve, reject) {
       socket = new Phoenix.Socket("/socket", { params: {} });
       socket.onOpen(function () {
         setStatus("Connected – Starting broadcast...", "live");
         if (mediaRecorder && mediaRecorder.state !== "inactive") {
-          channel = socket.channel("broadcaster:one", {});
+          channel = socket.channel("broadcaster:" + stationId, {});
           channel.join()
             .receive("ok", function () {
               setStatus("LIVE – Broadcasting", "live");
@@ -156,7 +188,7 @@
         }
       });
       socket.connect();
-      channel = socket.channel("broadcaster:one", {});
+      channel = socket.channel("broadcaster:" + stationId, {});
       channel.onClose(function () {
         if (mediaRecorder && mediaRecorder.state !== "inactive") {
           setStatus("Channel closed", "failed");
@@ -186,8 +218,24 @@
     });
   }
 
-  startBtn.addEventListener("click", function () {
+  broadcastBtn.addEventListener("click", function () {
+    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+      mediaRecorder.stop();
+      if (stream) stream.getTracks().forEach(function (t) { t.stop(); });
+      clearIntervals();
+      if (channel) channel.leave();
+      if (socket) socket.disconnect();
+      setStatus("Stopped", "");
+      broadcastBtn.textContent = "Start";
+      broadcastBtn.disabled = false;
+      listenerCount = 0;
+      chunksSent = 0;
+      updateStats();
+      log("Broadcast ended. Chunks sent: " + chunksSent);
+      return;
+    }
     setStatus("Connecting...", "");
+    broadcastBtn.disabled = true;
     navigator.mediaDevices
       .getUserMedia({ audio: getAudioOptions() })
       .then(function (s) {
@@ -201,30 +249,19 @@
         intervalIds.push(setInterval(pollListenerCount, 2000));
       })
       .catch(function (err) {
-        if (err.name === "NotAllowedError") {
+        if (err.message === "Select a station") {
+          setStatus("Select a station", "failed");
+          log("Select a station from the dropdown", "error");
+        } else if (err.name === "NotAllowedError") {
           setStatus("Microphone access denied", "failed");
           log("Microphone permission denied. Enable it in browser settings.", "error");
         } else {
           setStatus("Failed to start", "failed");
           log("Error: " + err.message, "error");
         }
-        startBtn.disabled = false;
+        broadcastBtn.disabled = false;
       });
   });
 
-  stopBtn.addEventListener("click", function () {
-    if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
-    if (stream) stream.getTracks().forEach(function (t) { t.stop(); });
-    clearIntervals();
-    if (channel) channel.leave();
-    if (socket) socket.disconnect();
-    setStatus("Stopped", "");
-    startBtn.disabled = false;
-    stopBtn.disabled = true;
-    listenerCount = 0;
-    chunksSent = 0;
-    updateStats();
-    log("Broadcast ended. Chunks sent: " + chunksSent);
-  });
-
+  if (stationSelectEl) loadStations();
 })();

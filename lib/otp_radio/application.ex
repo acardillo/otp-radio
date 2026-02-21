@@ -7,18 +7,24 @@ defmodule OtpRadio.Application do
 
   @impl true
   def start(_type, _args) do
+    # Registry MUST be started before any process that uses it for via_tuple naming.
+    # Keys: :unique ensures one process per key (e.g. one Server per station_id).
+    # Placed before Endpoint so channels can look up stations on join.
     children = [
       OtpRadioWeb.Telemetry,
       {DNSCluster, query: Application.get_env(:otp_radio, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: OtpRadio.PubSub},
-      OtpRadio.StationOne.Supervisor,
+      {Registry, keys: :unique, name: OtpRadio.StationRegistry},
+      OtpRadio.StationSupervisor,
       OtpRadioWeb.Endpoint
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: OtpRadio.Supervisor]
-    Supervisor.start_link(children, opts)
+    result = Supervisor.start_link(children, opts)
+    OtpRadio.StationBootstrap.bootstrap()
+    result
   end
 
   # Tell Phoenix to update the endpoint configuration

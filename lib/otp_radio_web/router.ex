@@ -7,5 +7,7 @@ defmodule OtpRadioWeb.Router do
 
   scope "/api", OtpRadioWeb do
     pipe_through :api
+
+    get "/stations", StationController, :index
   end
 end

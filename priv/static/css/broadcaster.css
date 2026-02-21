@@ -37,7 +37,7 @@ label {
   cursor: pointer;
 }
 
-select {
+#bitrateSelect {
   background: var(--panel);
   color: var(--text);
   border: 1px solid #333;

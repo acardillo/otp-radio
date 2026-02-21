@@ -22,8 +22,13 @@
     </div>
 
     <div class="controls">
-      <button id="startBtn" data-tooltip="Request mic and start streaming">Start Broadcasting</button>
-      <button id="stopBtn" disabled>Stop Broadcasting</button>
+      <label
+        >Station
+        <select id="stationSelect" class="station-select">
+          <option value="">Loading…</option>
+        </select></label
+      >
+      <button id="broadcastBtn" data-tooltip="Request mic and start streaming">Start</button>
       <div class="vu-wrap" title="Microphone level">
         <div class="vu-fill" id="vuFill"></div>
       </div>
