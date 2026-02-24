@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/acardillo/otp-radio/actions/workflows/ci.yml/badge.svg)](https://github.com/acardillo/otp-radio/actions/workflows/ci.yml)
 
-Real-time audio streaming. One or more stations; each station has a single broadcaster and zero or more listeners. Web clients send and receive Opus chunks over Phoenix channels.
+**Audio Livestream with Fault Tolerance** - An Elixir/OTP system for real-time audio broadcasting. Fault-tolerant multi-station architecture using supervision trees, GenServers, and Phoenix PubSub. Web clients send and receive Opus audio chunks over Phoenix Channels, capturing audio using the MediaRecorder API and supporting playback via Media Source Extensions.
 
 ## Prerequisites
 
@@ -12,19 +12,25 @@ Real-time audio streaming. One or more stations; each station has a single broad
 ## Quick start
 
 ```bash
+# 1. Install dependencies
 mix setup
+
+# 2. Run Server
 mix phx.server
+iex -S mix phx.server # to call into the running app
 ```
 
-- **Broadcaster:** [http://localhost:4000/broadcaster.html](http://localhost:4000/broadcaster.html) — pick a station, start streaming from the mic.
-- **Listener:** [http://localhost:4000/listener.html](http://localhost:4000/listener.html) — pick a station, connect to hear the stream.
+[localhost:4000/broadcaster.html](http://localhost:4000/broadcaster.html) — pick a station, start streaming from the mic.
 
-Stations are created at boot via `StationBootstrap` (default: four stations). The list is exposed at `GET /api/stations` and used by both UIs.
+[localhost:4000/listener.html](http://localhost:4000/listener.html) — pick a station, connect to hear the stream.
 
 ## Development
 
 ```bash
+# Run tests
 mix test
+
+# Compile, format & run tests
 mix precommit
 ```
 
