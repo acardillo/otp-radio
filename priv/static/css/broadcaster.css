@@ -36,13 +36,3 @@ label {
   font-size: 0.9rem;
   cursor: pointer;
 }
-
-#bitrateSelect {
-  background: var(--panel);
-  color: var(--text);
-  border: 1px solid #333;
-  border-radius: 4px;
-  padding: 8px 12px;
-  font-family: inherit;
-  font-size: 0.9rem;
-}

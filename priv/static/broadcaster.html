@@ -4,6 +4,12 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>OTP Radio - Broadcaster</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,300..900;1,300..900&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="/css/shared.css" />
     <link rel="stylesheet" href="/css/broadcaster.css" />
   </head>
@@ -24,7 +30,7 @@
     <div class="controls">
       <label
         >Station
-        <select id="stationSelect" class="station-select">
+        <select id="stationSelect" class="custom-select">
           <option value="">Loading…</option>
         </select></label
       >
@@ -39,13 +45,13 @@
       <div class="controls">
         <label>
           Input
-          <select id="inputSelect" class="station-select">
+          <select id="inputSelect" class="custom-select">
             <option value="">Default microphone</option>
           </select>
         </label>
         <label>
           Bitrate
-          <select id="bitrateSelect">
+          <select id="bitrateSelect" class="custom-select">
             <option value="32000">32 kbps</option>
             <option value="64000" selected>64 kbps</option>
             <option value="128000">128 kbps</option>

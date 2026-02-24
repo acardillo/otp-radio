@@ -16,7 +16,7 @@
 }
 
 body {
-  font-family: "SF Mono", Monaco, Consolas, monospace;
+  font-family: 'Figtree', sans-serif;
   padding: 24px;
   background: var(--bg);
   color: var(--text);
@@ -175,7 +175,7 @@ button.secondary:hover:not(:disabled) {
   margin-bottom: 4px;
 }
 
-.station-select {
+.custom-select {
   min-width: 180px;
   padding: 10px 14px;
   background: var(--panel);
@@ -193,17 +193,17 @@ button.secondary:hover:not(:disabled) {
   padding-right: 36px;
 }
 
-.station-select:hover {
+.custom-select:hover {
   border-color: var(--accent-dim);
 }
 
-.station-select:focus {
+.custom-select:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08);
 }
 
-.station-select option {
+.custom-select option {
   background: var(--panel);
   color: var(--text);
   padding: 10px;
