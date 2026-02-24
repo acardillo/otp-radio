@@ -40,6 +40,14 @@ defmodule OtpRadioWeb.BroadcasterChannelTest do
       ref = push(socket, "audio_chunk", %{})
       assert_reply ref, :error, %{reason: "invalid data"}
     end
+
+    test "malformed base64 replies error and does not crash channel", %{socket: socket} do
+      ref = push(socket, "audio_chunk", %{"data" => "not-valid-base64!!"})
+      assert_reply ref, :error, %{reason: "invalid data"}
+      # Channel still alive: can push again and get reply
+      ref2 = push(socket, "listener_count", %{})
+      assert_reply ref2, :ok, %{count: _}
+    end
   end
 
   describe "handle_in listener_count" do

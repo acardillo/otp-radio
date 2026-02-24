@@ -30,11 +30,17 @@ defmodule OtpRadioWeb.BroadcasterChannel do
 
   @impl true
   def handle_in("audio_chunk", %{"data" => base64_data}, socket) when is_binary(base64_data) do
-    station_id = get_station_id(socket)
-    broadcaster = OtpRadio.Station.Broadcaster.via_tuple(station_id)
-    binary_data = Base.decode64!(base64_data)
-    OtpRadio.Station.Broadcaster.ingest_chunk(broadcaster, binary_data)
-    {:reply, :ok, socket}
+    case Base.decode64(base64_data, padding: false) do
+      {:ok, binary_data} ->
+        station_id = get_station_id(socket)
+        broadcaster = OtpRadio.Station.Broadcaster.via_tuple(station_id)
+        OtpRadio.Station.Broadcaster.ingest_chunk(broadcaster, binary_data)
+        {:reply, :ok, socket}
+
+      :error ->
+        Logger.warning("Received audio_chunk with invalid base64")
+        {:reply, {:error, %{reason: "invalid data"}}, socket}
+    end
   end
 
   def handle_in("audio_chunk", _payload, socket) do
