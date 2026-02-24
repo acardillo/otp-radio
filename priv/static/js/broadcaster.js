@@ -22,6 +22,7 @@
   var noiseSuppression = document.getElementById("noiseSuppression");
   var echoCancellation = document.getElementById("echoCancellation");
   var stationSelectEl = document.getElementById("stationSelect");
+  var inputSelectEl = document.getElementById("inputSelect");
 
   var socket, channel, mediaRecorder, stream, audioContext, analyser;
   var intervalIds = [];
@@ -78,11 +79,34 @@
   }
 
   function getAudioOptions() {
-    return {
+    var audio = {
       echoCancellation: echoCancellation.checked,
       noiseSuppression: noiseSuppression.checked,
       sampleRate: 48000,
     };
+    var deviceId = inputSelectEl && inputSelectEl.value ? inputSelectEl.value.trim() : "";
+    if (deviceId) audio.deviceId = { ideal: deviceId };
+    return audio;
+  }
+
+  function loadInputDevices() {
+    if (!inputSelectEl || !navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+    navigator.mediaDevices.enumerateDevices().then(function (devices) {
+      var audioInputs = devices.filter(function (d) { return d.kind === "audioinput"; });
+      var selected = inputSelectEl.value;
+      inputSelectEl.innerHTML = "";
+      var defaultOpt = document.createElement("option");
+      defaultOpt.value = "";
+      defaultOpt.textContent = "Default microphone";
+      inputSelectEl.appendChild(defaultOpt);
+      audioInputs.forEach(function (d, i) {
+        var opt = document.createElement("option");
+        opt.value = d.deviceId;
+        opt.textContent = d.label || "Microphone " + (i + 1);
+        inputSelectEl.appendChild(opt);
+        if (d.deviceId === selected) opt.selected = true;
+      });
+    }).catch(function () {});
   }
 
   function getBitrate() {
@@ -241,6 +265,7 @@
       .then(function (s) {
         stream = s;
         log("Microphone access granted");
+        loadInputDevices();
         return connectAndJoin();
       })
       .then(function () {
@@ -264,4 +289,5 @@
   });
 
   if (stationSelectEl) loadStations();
+  if (inputSelectEl) loadInputDevices();
 })();
