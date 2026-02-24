@@ -5,10 +5,10 @@ defmodule OtpRadio.StationBootstrap do
   """
 
   @stations [
-    {"one", "Station One"},
-    {"two", "Station Two"},
-    {"three", "Station Three"},
-    {"four", "Station Four"}
+    {"1", "1"},
+    {"2", "2"},
+    {"3", "3"},
+    {"4", "4"}
   ]
 
   @doc """

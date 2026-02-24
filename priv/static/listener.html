@@ -6,35 +6,47 @@
     <title>OTP Radio - Listener</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,300..900;1,300..900&display=swap" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,300..900;1,300..900&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="/css/shared.css" />
     <link rel="stylesheet" href="/css/listener.css" />
   </head>
   <body>
-    <h1>OTP Radio - Listener</h1>
+    <h1 class="text-center">OTP Radio</h1>
 
     <div class="status-bar" id="statusBar">
-      <span class="status-dot" id="statusDot"></span>
-      <span class="status-text" id="statusText">Ready</span>
-    </div>
-
-    <div class="stats" id="stats">
-      <span>Buffer: <strong id="bufferSec">0</strong> s</span>
-      <span>Chunks/s: <strong id="chunksPerSec">0</strong></span>
-      <span>Latency: <strong id="latencyMs">—</strong></span>
-      <span>Queue: <strong id="queueLen">0</strong></span>
-    </div>
-
-    <div class="controls">
-      <label>Station <select id="stationSelect" class="custom-select"><option value="">Loading…</option></select></label>
-      <button id="playBtn" data-tooltip="Connect and start playback">Start Listening</button>
+      <span class="status-bar-label">Channel</span>
+      <div id="stationButtons" class="station-buttons"></div>
+      <div class="status-bar-end">
+        <span id="statusLiveWrap" class="status-live-wrap" style="display: none">
+          <span class="status-dot" id="statusDot" title="Status"></span>
+          <span class="status-live-text">Listening</span>
+        </span>
+        <button id="playBtn" class="status-bar-btn" data-tooltip="Connect and start playback">
+          Start
+        </button>
+      </div>
     </div>
 
     <audio id="audioPlayer" controls></audio>
 
-    <div class="section">
-      <h3>Stream log</h3>
-      <div id="log"></div>
+    <div class="section log-section">
+      <div class="log-box">
+        <div class="log-header">
+          <span class="log-title">Stream Log</span>
+          <span class="log-stats">
+            Buffer: <strong id="bufferSec">0</strong> s Chunks/s:
+            <strong id="chunksPerSec">0</strong> Latency: <strong id="latencyMs">—</strong>
+            Queue: <strong id="queueLen">0</strong>
+          </span>
+          <button type="button" class="log-copy-btn" id="logCopyBtn" title="Copy log to clipboard">
+            Copy
+          </button>
+        </div>
+        <div id="log" class="log-content"></div>
+      </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/phoenix@1.7.10/priv/static/phoenix.min.js"></script>

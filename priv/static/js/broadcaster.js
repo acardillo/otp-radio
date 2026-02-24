@@ -11,18 +11,20 @@
   var CHUNK_MS = 250;
 
   var statusDot = document.getElementById("statusDot");
-  var statusText = document.getElementById("statusText");
+  var statusLiveWrap = document.getElementById("statusLiveWrap");
   var listenerCountEl = document.getElementById("listenerCount");
   var chunksSentEl = document.getElementById("chunksSent");
   var vuLevelEl = document.getElementById("vuLevel");
+  var vuLevelUnitEl = document.getElementById("vuLevelUnit");
   var vuFill = document.getElementById("vuFill");
   var logEl = document.getElementById("log");
   var broadcastBtn = document.getElementById("broadcastBtn");
   var bitrateSelect = document.getElementById("bitrateSelect");
   var noiseSuppression = document.getElementById("noiseSuppression");
   var echoCancellation = document.getElementById("echoCancellation");
-  var stationSelectEl = document.getElementById("stationSelect");
+  var stationButtonsEl = document.getElementById("stationButtons");
   var inputSelectEl = document.getElementById("inputSelect");
+  var selectedStationId = null;
 
   var socket, channel, mediaRecorder, stream, audioContext, analyser;
   var intervalIds = [];
@@ -37,9 +39,9 @@
     logEl.insertBefore(div, logEl.firstChild);
   }
 
-  function setStatus(text, state) {
-    statusText.textContent = text;
+  function setStatus(_text, state) {
     statusDot.className = "status-dot" + (state ? " " + state : "");
+    if (statusLiveWrap) statusLiveWrap.style.display = state === "live" ? "" : "none";
   }
 
   function updateStats() {
@@ -68,7 +70,17 @@
       avg /= data.length;
       var pct = Math.min(100, (avg / 128) * 100);
       vuFill.style.width = pct + "%";
-      vuLevelEl.textContent = Math.round(pct) + "%";
+      var normalized = (avg / 255) + 0.001;
+      var db = 20 * Math.log10(normalized);
+      if (db <= -60) {
+        vuLevelEl.textContent = "No signal";
+        vuLevelUnitEl.textContent = "";
+        if (vuLevelEl.parentElement) vuLevelEl.parentElement.classList.add("vu-db-idle");
+      } else {
+        vuLevelEl.textContent = Math.round(db);
+        vuLevelUnitEl.textContent = " dB";
+        if (vuLevelEl.parentElement) vuLevelEl.parentElement.classList.remove("vu-db-idle");
+      }
     }, 100);
     intervalIds.push(id);
   }
@@ -150,36 +162,69 @@
     mediaRecorder.start(CHUNK_MS);
     setStatus("LIVE – Broadcasting", "live");
     broadcastBtn.textContent = "Stop";
+    broadcastBtn.dataset.tooltip = "Disconnect and end stream";
     broadcastBtn.disabled = false;
     log("Broadcasting started (Opus @ " + getBitrate() / 1000 + " kbps, " + CHUNK_MS + "ms chunks)");
   }
 
   function getStationId() {
-    if (!stationSelectEl || !stationSelectEl.value) return null;
-    return stationSelectEl.value.trim() || null;
+    return selectedStationId;
+  }
+
+  function setStationActive(btn) {
+    var btns = stationButtonsEl.querySelectorAll(".station-btn");
+    for (var i = 0; i < btns.length; i++) btns[i].classList.remove("active");
+    if (btn) btn.classList.add("active");
+  }
+
+  function disconnectAndStop() {
+    if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
+    if (stream) stream.getTracks().forEach(function (t) { t.stop(); });
+    clearIntervals();
+    if (channel) channel.leave();
+    if (socket) socket.disconnect();
+    setStatus("Stopped", "");
+    broadcastBtn.textContent = "Start";
+    broadcastBtn.dataset.tooltip = "Request mic and start streaming";
+    broadcastBtn.disabled = false;
+    vuLevelEl.textContent = "No signal";
+    if (vuLevelUnitEl) vuLevelUnitEl.textContent = "";
+    if (vuLevelEl.parentElement) vuLevelEl.parentElement.classList.add("vu-db-idle");
+    if (vuFill) vuFill.style.width = "0%";
+    var sent = chunksSent;
+    listenerCount = 0;
+    chunksSent = 0;
+    updateStats();
+    if (sent > 0) log("Broadcast ended. Chunks sent: " + sent);
   }
 
   function loadStations() {
-    if (!stationSelectEl) return;
-    stationSelectEl.innerHTML = "<option value=\"\">Loading…</option>";
+    if (!stationButtonsEl) return;
+    stationButtonsEl.innerHTML = "";
     fetch("/api/stations")
       .then(function (r) { return r.json(); })
       .then(function (stations) {
-        stationSelectEl.innerHTML = "";
-        if (stations.length === 0) {
-          stationSelectEl.innerHTML = "<option value=\"\">No stations</option>";
-          return;
-        }
-        stations.forEach(function (s) {
-          var opt = document.createElement("option");
-          opt.value = s.id;
-          opt.textContent = s.name;
-          stationSelectEl.appendChild(opt);
+        if (stations.length === 0) return;
+        stations.sort(function (a, b) { return (a.name || "").localeCompare(b.name || ""); });
+        stations.forEach(function (s, index) {
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "station-btn" + (index === 0 ? " active" : "");
+          btn.dataset.stationId = s.id;
+          btn.textContent = s.name;
+          btn.title = "Broadcast to " + s.name;
+          if (index === 0) selectedStationId = s.id;
+          btn.addEventListener("click", function () {
+            if (mediaRecorder && mediaRecorder.state !== "inactive") {
+              disconnectAndStop();
+            }
+            selectedStationId = btn.dataset.stationId;
+            setStationActive(btn);
+          });
+          stationButtonsEl.appendChild(btn);
         });
       })
-      .catch(function () {
-        stationSelectEl.innerHTML = "<option value=\"\">Failed to load</option>";
-      });
+      .catch(function () {});
   }
 
   function connectAndJoin() {
@@ -244,18 +289,7 @@
 
   broadcastBtn.addEventListener("click", function () {
     if (mediaRecorder && mediaRecorder.state !== "inactive") {
-      mediaRecorder.stop();
-      if (stream) stream.getTracks().forEach(function (t) { t.stop(); });
-      clearIntervals();
-      if (channel) channel.leave();
-      if (socket) socket.disconnect();
-      setStatus("Stopped", "");
-      broadcastBtn.textContent = "Start";
-      broadcastBtn.disabled = false;
-      listenerCount = 0;
-      chunksSent = 0;
-      updateStats();
-      log("Broadcast ended. Chunks sent: " + chunksSent);
+      disconnectAndStop();
       return;
     }
     setStatus("Connecting...", "");
@@ -288,6 +322,20 @@
       });
   });
 
-  if (stationSelectEl) loadStations();
+  var logCopyBtn = document.getElementById("logCopyBtn");
+  if (logCopyBtn) {
+    logCopyBtn.addEventListener("click", function () {
+      var lines = [];
+      for (var i = logEl.children.length - 1; i >= 0; i--) lines.push(logEl.children[i].textContent);
+      var text = lines.length ? lines.join("\n") : "(no log entries yet)";
+      navigator.clipboard.writeText(text).then(function () {
+        var orig = logCopyBtn.textContent;
+        logCopyBtn.textContent = "Copied!";
+        setTimeout(function () { logCopyBtn.textContent = orig; }, 1500);
+      }).catch(function () {});
+    });
+  }
+
+  if (stationButtonsEl) loadStations();
   if (inputSelectEl) loadInputDevices();
 })();

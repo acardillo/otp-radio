@@ -14,57 +14,79 @@
     <link rel="stylesheet" href="/css/broadcaster.css" />
   </head>
   <body>
-    <h1>OTP Radio - Broadcaster</h1>
+    <h1 class="text-center">OTP Radio Broadcast</h1>
 
     <div class="status-bar" id="statusBar">
-      <span class="status-dot" id="statusDot"></span>
-      <span class="status-text" id="statusText">Not connected</span>
+      <span class="status-bar-label">Channel</span>
+      <div id="stationButtons" class="station-buttons"></div>
+      <div class="status-bar-end">
+        <span id="statusLiveWrap" class="status-live-wrap" style="display: none">
+          <span class="status-dot" id="statusDot" title="Status"></span>
+          <span class="status-live-text">Live</span>
+        </span>
+        <button
+          id="broadcastBtn"
+          class="status-bar-btn"
+          data-tooltip="Request mic and start streaming"
+        >
+          Start
+        </button>
+      </div>
     </div>
 
-    <div class="stats" id="stats">
-      <span>Listeners: <strong id="listenerCount">0</strong></span>
-      <span>Chunks sent: <strong id="chunksSent">0</strong></span>
-      <span>Level: <strong id="vuLevel">—</strong></span>
-    </div>
-
-    <div class="controls">
-      <label
-        >Station
-        <select id="stationSelect" class="custom-select">
-          <option value="">Loading…</option>
-        </select></label
-      >
-      <button id="broadcastBtn" data-tooltip="Request mic and start streaming">Start</button>
+    <div class="controls vu-level-row">
       <div class="vu-wrap" title="Microphone level">
+        <span class="vu-db-overlay vu-db-idle"
+          ><strong id="vuLevel">No signal</strong><span id="vuLevelUnit"></span
+        ></span>
         <div class="vu-fill" id="vuFill"></div>
       </div>
     </div>
 
     <div class="section">
-      <h3>Audio</h3>
-      <div class="controls">
-        <label>
-          Input
-          <select id="inputSelect" class="custom-select">
-            <option value="">Default microphone</option>
-          </select>
-        </label>
-        <label>
-          Bitrate
-          <select id="bitrateSelect" class="custom-select">
-            <option value="32000">32 kbps</option>
-            <option value="64000" selected>64 kbps</option>
-            <option value="128000">128 kbps</option>
-          </select>
-        </label>
-        <label><input type="checkbox" id="noiseSuppression" checked /> Noise suppression</label>
-        <label><input type="checkbox" id="echoCancellation" checked /> Echo cancellation</label>
+      <div class="audio-settings">
+        <div class="audio-settings-row">
+          <div class="audio-setting">
+            <label class="audio-setting-label" for="inputSelect">Input</label>
+            <select id="inputSelect" class="custom-select">
+              <option value="">Default microphone</option>
+            </select>
+          </div>
+          <div class="audio-setting">
+            <label class="audio-setting-label" for="bitrateSelect">Bitrate</label>
+            <select id="bitrateSelect" class="custom-select">
+              <option value="32000">32 kbps</option>
+              <option value="64000" selected>64 kbps</option>
+              <option value="128000">128 kbps</option>
+            </select>
+          </div>
+        </div>
+        <div class="audio-settings-row audio-settings-processing">
+          <span class="audio-setting-label">Audio Processing Options</span>
+          <label class="audio-checkbox"
+            ><input type="checkbox" id="noiseSuppression" checked /> Noise suppression</label
+          >
+          <label class="audio-checkbox"
+            ><input type="checkbox" id="echoCancellation" checked /> Echo cancellation</label
+          >
+        </div>
       </div>
     </div>
 
-    <div class="section">
-      <h3>Broadcast log</h3>
-      <div id="log"></div>
+    <div class="section log-section">
+      <div class="log-box">
+        <div class="log-header">
+          <span class="log-title">Broadcast Log</span>
+          <span class="log-stats"
+            >Listeners: <strong id="listenerCount">0</strong> Chunks:
+            <strong id="chunksSent">0</strong></span
+          >
+          <button type="button" class="log-copy-btn" id="logCopyBtn" title="Copy log to clipboard">
+            Copy
+          </button>
+        </div>
+        <div id="log" class="log-content"></div>
+      </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/phoenix@1.7.10/priv/static/phoenix.min.js"></script>

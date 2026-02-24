@@ -12,7 +12,7 @@
   var LATENCY_SAMPLE_INTERVAL_MS = 500;
 
   var statusDot = document.getElementById("statusDot");
-  var statusText = document.getElementById("statusText");
+  var statusLiveWrap = document.getElementById("statusLiveWrap");
   var bufferSecEl = document.getElementById("bufferSec");
   var chunksPerSecEl = document.getElementById("chunksPerSec");
   var latencyMsEl = document.getElementById("latencyMs");
@@ -21,7 +21,8 @@
   var playBtn = document.getElementById("playBtn");
   var audioPlayer = document.getElementById("audioPlayer");
 
-  var stationSelectEl = document.getElementById("stationSelect");
+  var stationButtonsEl = document.getElementById("stationButtons");
+  var selectedStationId = null;
   var mediaSource, sourceBuffer, socket, channel;
   var chunkQueue = [];
   var isAppending = false;
@@ -40,9 +41,9 @@
     logEl.insertBefore(div, logEl.firstChild);
   }
 
-  function setStatus(text, state) {
-    statusText.textContent = text;
+  function setStatus(_text, state) {
     statusDot.className = "status-dot" + (state ? " " + state : "");
+    if (statusLiveWrap) statusLiveWrap.style.display = state === "live" ? "" : "none";
   }
 
   function updateStats() {
@@ -71,31 +72,66 @@
   }
 
   function getSelectedStationId() {
-    if (!stationSelectEl || !stationSelectEl.value) return null;
-    return stationSelectEl.value.trim() || null;
+    return selectedStationId;
+  }
+
+  function setStationActive(btn) {
+    var btns = stationButtonsEl.querySelectorAll(".station-btn");
+    for (var i = 0; i < btns.length; i++) btns[i].classList.remove("active");
+    if (btn) btn.classList.add("active");
+  }
+
+  function disconnectAndStop() {
+    if (channel) channel.leave();
+    if (socket) socket.disconnect();
+    socket = null;
+    channel = null;
+    if (mediaSource && mediaSource.readyState !== "closed") {
+      try {
+        if (mediaSource.readyState === "open" && mediaSource.sourceBuffers.length > 0) {
+          mediaSource.sourceBuffers[0].abort();
+        }
+        mediaSource.endOfStream();
+      } catch (_) {}
+      mediaSource = null;
+      sourceBuffer = null;
+    }
+    chunkQueue = [];
+    isAppending = false;
+    if (latencySampleIntervalId) {
+      clearInterval(latencySampleIntervalId);
+      latencySampleIntervalId = null;
+    }
+    setStatus("", "");
+    playBtn.textContent = "Start";
+    playBtn.disabled = false;
   }
 
   function loadStations() {
-    if (!stationSelectEl) return;
-    stationSelectEl.innerHTML = "<option value=\"\">Loading…</option>";
+    if (!stationButtonsEl) return;
+    stationButtonsEl.innerHTML = "";
     fetch("/api/stations")
       .then(function (r) { return r.json(); })
       .then(function (stations) {
-        stationSelectEl.innerHTML = "";
-        if (stations.length === 0) {
-          stationSelectEl.innerHTML = "<option value=\"\">No stations</option>";
-          return;
-        }
-        stations.forEach(function (s) {
-          var opt = document.createElement("option");
-          opt.value = s.id;
-          opt.textContent = s.name;
-          stationSelectEl.appendChild(opt);
+        if (stations.length === 0) return;
+        stations.sort(function (a, b) { return (a.name || "").localeCompare(b.name || ""); });
+        stations.forEach(function (s, index) {
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "station-btn" + (index === 0 ? " active" : "");
+          btn.dataset.stationId = s.id;
+          btn.textContent = s.name;
+          btn.title = "Listen to " + s.name;
+          if (index === 0) selectedStationId = s.id;
+          btn.addEventListener("click", function () {
+            if (channel) disconnectAndStop();
+            selectedStationId = btn.dataset.stationId;
+            setStationActive(btn);
+          });
+          stationButtonsEl.appendChild(btn);
         });
       })
-      .catch(function () {
-        stationSelectEl.innerHTML = "<option value=\"\">Failed to load</option>";
-      });
+      .catch(function () {});
   }
 
   function appendNextChunk() {
@@ -302,5 +338,19 @@
     startListening();
   });
 
-  if (stationSelectEl) loadStations();
+  var logCopyBtn = document.getElementById("logCopyBtn");
+  if (logCopyBtn) {
+    logCopyBtn.addEventListener("click", function () {
+      var lines = [];
+      for (var i = logEl.children.length - 1; i >= 0; i--) lines.push(logEl.children[i].textContent);
+      var text = lines.length ? lines.join("\n") : "(no log entries yet)";
+      navigator.clipboard.writeText(text).then(function () {
+        var orig = logCopyBtn.textContent;
+        logCopyBtn.textContent = "Copied!";
+        setTimeout(function () { logCopyBtn.textContent = orig; }, 1500);
+      }).catch(function () {});
+    });
+  }
+
+  if (stationButtonsEl) loadStations();
 })();
