@@ -1,5 +1,7 @@
 # OTP Radio
 
+[![CI](https://github.com/acardillo/otp-radio/actions/workflows/ci.yml/badge.svg)](https://github.com/acardillo/otp-radio/actions/workflows/ci.yml)
+
 Real-time audio streaming. One or more stations; each station has a single broadcaster and zero or more listeners. Web clients send and receive Opus chunks over Phoenix channels.
 
 ## Prerequisites
