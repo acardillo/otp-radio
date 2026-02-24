@@ -1,22 +1,29 @@
 # OTP Radio
 
-Real-time audio broadcasting.
+Real-time audio streaming. One or more stations; each station has a single broadcaster and zero or more listeners. Web clients send and receive Opus chunks over Phoenix channels.
 
-## Quick Start
+## Prerequisites
 
+- Elixir 1.14+
+- Phoenix 1.7
+
+## Quick start
+
+```bash
+mix setup
+mix phx.server
 ```
-# 1. install and setup dependencies
-mix setup to install and setup dependencies
 
-# 2. Start Phoenix endpoint
-mix phx.server # or iex -S mix phx.server
+- **Broadcaster:** [http://localhost:4000/broadcaster.html](http://localhost:4000/broadcaster.html) — pick a station, start streaming from the mic.
+- **Listener:** [http://localhost:4000/listener.html](http://localhost:4000/listener.html) — pick a station, connect to hear the stream.
+
+Stations are created at boot via `StationBootstrap` (default: four stations). The list is exposed at `GET /api/stations` and used by both UIs.
+
+## Development
+
+```bash
+mix test
+mix precommit
 ```
 
-Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
-
-**Phoenix Resources**
-
-- Website: https://www.phoenixframework.org/
-- Source: https://github.com/phoenixframework/phoenix
-- Docs: https://hexdocs.pm/phoenix
-- Deploy: https://hexdocs.pm/phoenix/deployment.html
+See [ARCHITECTURE.md](ARCHITECTURE.md) for how the OTP and channel layout works.
