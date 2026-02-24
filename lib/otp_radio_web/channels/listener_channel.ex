@@ -37,22 +37,31 @@ defmodule OtpRadioWeb.ListenerChannel do
   @impl true
   def handle_info(:after_join, socket) do
     station_id = get_station_id(socket)
-    distributor = OtpRadio.Station.Distributor.via_tuple(station_id)
-    {:ok, server_pid} = OtpRadio.StationManager.get_station(station_id)
-    buffer = OtpRadio.Station.Distributor.get_buffer(distributor)
 
-    Enum.each(buffer, fn chunk ->
-      push(socket, "audio", %{
-        data: Base.encode64(chunk.data),
-        sequence: chunk.sequence,
-        size: chunk.size
-      })
-    end)
+    case OtpRadio.StationManager.get_station(station_id) do
+      {:ok, server_pid} ->
+        distributor = OtpRadio.Station.Distributor.via_tuple(station_id)
+        buffer = OtpRadio.Station.Distributor.get_buffer(distributor)
 
-    OtpRadio.Station.Server.increment_listeners(server_pid)
-    Logger.info("Sent #{length(buffer)} buffered chunks to listener for station_id=#{station_id}")
+        Enum.each(buffer, fn chunk ->
+          push(socket, "audio", %{
+            data: Base.encode64(chunk.data),
+            sequence: chunk.sequence,
+            size: chunk.size
+          })
+        end)
 
-    {:noreply, socket}
+        OtpRadio.Station.Server.increment_listeners(server_pid)
+        Logger.info("Sent #{length(buffer)} buffered chunks to listener for station_id=#{station_id}")
+
+        {:noreply, socket}
+
+      {:error, _} ->
+        # Station was stopped between join and :after_join (rare race)
+        Logger.warning("Station no longer available in after_join station_id=#{station_id}")
+        push(socket, "station_unavailable", %{reason: "station no longer available"})
+        {:stop, :normal, socket}
+    end
   end
 
   @impl true
