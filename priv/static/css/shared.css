@@ -132,6 +132,49 @@ h1 {
   margin-bottom: 20px;
 }
 
+/* VU meter (broadcaster and listener) */
+.vu-level-row {
+  width: 100%;
+}
+
+.vu-wrap {
+  position: relative;
+  width: 100%;
+  height: 32px;
+  background: #000;
+  border: 1px solid #333;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.vu-db-overlay {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
+  font-size: 0.9rem;
+  color: #fff;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.vu-db-overlay.vu-db-idle {
+  color: var(--text-dim);
+}
+
+.vu-db-overlay strong {
+  color: inherit;
+}
+
+.vu-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #00c853, var(--warn));
+  border-radius: 4px;
+  transition: width 0.05s ease-out;
+}
+
 button {
   font-size: 0.95rem;
   padding: 8px 20px;

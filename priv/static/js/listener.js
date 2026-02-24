@@ -20,6 +20,9 @@
   var logEl = document.getElementById("log");
   var playBtn = document.getElementById("playBtn");
   var audioPlayer = document.getElementById("audioPlayer");
+  var vuLevelEl = document.getElementById("vuLevel");
+  var vuLevelUnitEl = document.getElementById("vuLevelUnit");
+  var vuFill = document.getElementById("vuFill");
 
   var stationButtonsEl = document.getElementById("stationButtons");
   var selectedStationId = null;
@@ -32,6 +35,9 @@
   var lastSecondTime = Date.now();
   var latencySampleIntervalId = null;
   var sourceBufferErrorCount = 0;
+  var audioContext = null;
+  var analyser = null;
+  var vuIntervalId = null;
 
   function log(message, type) {
     type = type || "";
@@ -81,6 +87,67 @@
     if (btn) btn.classList.add("active");
   }
 
+  function resetVuDisplay() {
+    if (vuFill) vuFill.style.width = "0%";
+    if (vuLevelEl) {
+      vuLevelEl.textContent = "No signal";
+      if (vuLevelUnitEl) vuLevelUnitEl.textContent = "";
+      if (vuLevelEl.parentElement) vuLevelEl.parentElement.classList.add("vu-db-idle");
+    }
+  }
+
+  function startVuMeter() {
+    if (audioContext) {
+      try {
+        audioContext.close();
+      } catch (_) {}
+    }
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioContext.state === "suspended") audioContext.resume();
+    var source = audioContext.createMediaElementSource(audioPlayer);
+    analyser = audioContext.createAnalyser();
+    analyser.fftSize = 256;
+    analyser.smoothingTimeConstant = 0.8;
+    source.connect(analyser);
+    analyser.connect(audioContext.destination);
+    var data = new Uint8Array(analyser.frequencyBinCount);
+    vuIntervalId = setInterval(function () {
+      if (!analyser || !vuFill) return;
+      analyser.getByteFrequencyData(data);
+      var avg = 0;
+      for (var i = 0; i < data.length; i++) avg += data[i];
+      avg /= data.length;
+      var pct = Math.min(100, (avg / 128) * 100);
+      vuFill.style.width = pct + "%";
+      var normalized = (avg / 255) + 0.001;
+      var db = 20 * Math.log10(normalized);
+      if (db <= -60) {
+        vuLevelEl.textContent = "No signal";
+        vuLevelUnitEl.textContent = "";
+        if (vuLevelEl.parentElement) vuLevelEl.parentElement.classList.add("vu-db-idle");
+      } else {
+        vuLevelEl.textContent = Math.round(db);
+        vuLevelUnitEl.textContent = " dB";
+        if (vuLevelEl.parentElement) vuLevelEl.parentElement.classList.remove("vu-db-idle");
+      }
+    }, 100);
+  }
+
+  function stopVuMeter() {
+    if (vuIntervalId) {
+      clearInterval(vuIntervalId);
+      vuIntervalId = null;
+    }
+    resetVuDisplay();
+    if (audioContext) {
+      try {
+        audioContext.close();
+      } catch (_) {}
+      audioContext = null;
+    }
+    analyser = null;
+  }
+
   function disconnectAndStop() {
     if (channel) channel.leave();
     if (socket) socket.disconnect();
@@ -102,6 +169,7 @@
       clearInterval(latencySampleIntervalId);
       latencySampleIntervalId = null;
     }
+    stopVuMeter();
     setStatus("", "");
     playBtn.textContent = "Start";
     playBtn.disabled = false;
@@ -280,6 +348,7 @@
       log("MediaSource opened");
       sourceBuffer = mediaSource.addSourceBuffer('audio/webm; codecs="opus"');
       if (sourceBuffer.mode !== undefined) sourceBuffer.mode = "sequence";
+      startVuMeter();
 
       sourceBuffer.addEventListener("updateend", function () {
         isAppending = false;
