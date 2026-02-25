@@ -35,5 +35,13 @@ defmodule OtpRadio.Station.ServerTest do
       OtpRadio.Station.Server.decrement_listeners(server)
       assert OtpRadio.Station.Server.get_status(server).listener_count == before - 1
     end
+
+    test "decrement without prior increment keeps listener_count at 0", %{server: server} do
+      assert OtpRadio.Station.Server.get_status(server).listener_count == 0
+      OtpRadio.Station.Server.decrement_listeners(server)
+      assert OtpRadio.Station.Server.get_status(server).listener_count == 0
+      OtpRadio.Station.Server.decrement_listeners(server)
+      assert OtpRadio.Station.Server.get_status(server).listener_count == 0
+    end
   end
 end

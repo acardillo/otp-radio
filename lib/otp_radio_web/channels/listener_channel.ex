@@ -52,7 +52,10 @@ defmodule OtpRadioWeb.ListenerChannel do
         end)
 
         OtpRadio.Station.Server.increment_listeners(server_pid)
-        Logger.info("Sent #{length(buffer)} buffered chunks to listener for station_id=#{station_id}")
+
+        Logger.info(
+          "Sent #{length(buffer)} buffered chunks to listener for station_id=#{station_id}"
+        )
 
         {:noreply, socket}
 

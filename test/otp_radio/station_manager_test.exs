@@ -2,6 +2,20 @@ defmodule OtpRadio.StationManagerTest do
   use ExUnit.Case, async: false
 
   describe "create_station/2" do
+    test "returns {:error, :invalid_args} for empty station_id" do
+      assert {:error, :invalid_args} = OtpRadio.StationManager.create_station("", "Some Name")
+    end
+
+    test "returns {:error, :invalid_args} for non-binary station_id" do
+      assert {:error, :invalid_args} = OtpRadio.StationManager.create_station(123, "Some Name")
+      assert {:error, :invalid_args} = OtpRadio.StationManager.create_station(nil, "Some Name")
+    end
+
+    test "returns {:error, :invalid_args} for non-binary name" do
+      assert {:error, :invalid_args} =
+               OtpRadio.StationManager.create_station("valid_id", 123)
+    end
+
     test "starts a station and list_stations includes it" do
       station_id = "test_station_#{System.unique_integer([:positive])}"
       assert {:ok, _pid} = OtpRadio.StationManager.create_station(station_id, "Test Station")
@@ -25,6 +39,11 @@ defmodule OtpRadio.StationManagerTest do
   end
 
   describe "stop_station/1" do
+    test "returns {:error, :invalid_args} for non-binary station_id" do
+      assert {:error, :invalid_args} = OtpRadio.StationManager.stop_station(123)
+      assert {:error, :invalid_args} = OtpRadio.StationManager.stop_station(nil)
+    end
+
     test "stops station and get_station returns not_found" do
       id = "stop_#{System.unique_integer([:positive])}"
       assert {:ok, sup_pid} = OtpRadio.StationManager.create_station(id, "To Stop")
@@ -54,6 +73,11 @@ defmodule OtpRadio.StationManagerTest do
     test "returns {:error, :not_found} for missing station" do
       assert {:error, :not_found} =
                OtpRadio.StationManager.get_station("nonexistent_#{System.unique_integer()}")
+    end
+
+    test "returns {:error, :invalid_args} for non-binary station_id" do
+      assert {:error, :invalid_args} = OtpRadio.StationManager.get_station(123)
+      assert {:error, :invalid_args} = OtpRadio.StationManager.get_station(nil)
     end
   end
 end
