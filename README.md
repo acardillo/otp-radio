@@ -4,6 +4,8 @@
 
 **Audio Livestream with Fault Tolerance** - An Elixir/OTP system for real-time audio broadcasting. Fault-tolerant multi-station architecture using supervision trees, GenServers, and Phoenix PubSub. Web clients send and receive Opus audio chunks over Phoenix Channels, capturing audio using the MediaRecorder API and supporting playback via Media Source Extensions.
 
+<img width="1306" height="753" alt="otp-radio-demo" src="https://github.com/user-attachments/assets/9d8f887d-98a5-40aa-9d6c-e2f398a09bfa" />
+
 ## Prerequisites
 
 - Elixir 1.14+
