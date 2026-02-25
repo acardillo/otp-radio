@@ -1,20 +1,24 @@
 # OTP Radio Architecture
 
-The app runs multiple independent stations. Each station is a small OTP tree: a Server (metadata and listener count), a Broadcaster (ingests chunks from the broadcaster client), and a Distributor (PubSub topic and ring buffer for late joiners). A Registry keys processes by station id so channels can resolve the right Broadcaster or Distributor without passing pids. Stations are started on demand under a DynamicSupervisor; bootstrap creates a few at startup.
+The app runs multiple independent stations. Each station is a small OTP tree:
 
-## High-level flow
+- **Server** - metadata and listener count
+- **Broadcaster** - ingests chunks from the broadcaster client
+- **Distributor** PubSub topic and ring buffer for late joiners
+
+A _key registry_ is used so stations can resolve the right Broadcaster or Distributor. Stations are created from StationManager, Station Bootstrap creates default stations (1, 2, 3, 4)
+
+## Audio Data flow
 
 ```
-Browser (broadcaster)  →  broadcaster:<id> channel  →  Station.Broadcaster
-                                                              ↓
-                                                    Station.Distributor
-                                                              ↓
-                                                    PubSub "station:id:audio"
-                                                              ↓
-Browser (listener)     ←  listener:<id> channel  ←  ListenerChannel (subscribed)
-```
+Broswer                                             Server
 
-Broadcaster client sends base64 Opus chunks. Listener client gets buffered chunks on join, then live chunks over the same socket. Both UIs load stations from `GET /api/stations` (backed by `StationManager.list_stations/0`).
+BroadcasterChannel (topic broadcaster:<id>) --->  + Station.Broadcaster
+                                                  |
+                                                  + Station.Distributor
+                                                  |
+ListenerChannel (topic listener:<id>)  <--------  + PubSub "station:<id>:audio"
+```
 
 ## Component diagram
 
