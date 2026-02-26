@@ -1,93 +1,90 @@
 # OTP Radio Architecture
 
-The app runs multiple independent stations. Each station is a small OTP tree:
+The app runs multiple audio _stations_. Each station is a small OTP tree:
 
-- **Server** - metadata and listener count
-- **Broadcaster** - ingests chunks from the broadcaster client
-- **Distributor** PubSub topic and ring buffer for late joiners
+- **Server** – metadata and listener count
+- **Broadcaster** – ingests chunks from the broadcaster client
+- **Distributor** – PubSub topic and ring buffer for late joiners
 
-A _key registry_ is used so stations can resolve the right Broadcaster or Distributor. Stations are created via `StationManager.create_station/0` (no args); each station gets an auto-incrementing id. The application creates four default stations at startup.
+The _root_ supervision tree (one per node) has these top-level children:
 
-## Audio Data flow
+- **PubSub** – broadcasts audio to listeners
+- **Registry** – stations register here by id; used for lookup and to derive the next id
+- **StationSupervisor** – DynamicSupervisor that holds 0..N station Supervisors
+- **Endpoint** – HTTP and WebSocket
 
-```
-Broswer                                             Server
+The **StationManager** module is used to register new stations with the Registry and start their Supervisors. It adds new stations to the StationSupervisor under the hood.
 
-BroadcasterChannel (topic broadcaster:<id>) --->  + Station.Broadcaster
-                                                  |
-                                                  + Station.Distributor
-                                                  |
-ListenerChannel (topic listener:<id>)  <--------  + PubSub "station:<id>:audio"
-```
-
-## Component diagram
+## Frontend–Backend Flow
 
 ```mermaid
-flowchart TD
-    subgraph Application
-        Registry[StationRegistry]
-        StationSup[StationSupervisor\nDynamicSupervisor]
-        PubSub[Phoenix.PubSub]
-        Endpoint[Endpoint]
+flowchart LR
+    subgraph Browser
+        BroadcasterUI[Broadcaster UI]
+        ListenerUI[Listener UI]
     end
 
-    subgraph PerStation["Per station (rest_for_one)"]
-        StSup[Station.Supervisor]
+    subgraph HTTP
+        API["GET /api/stations"]
+    end
+
+    subgraph WebSocket
+        BC["BroadcasterChannel"]
+        LC["ListenerChannel"]
+    end
+
+    subgraph Backend["Backend (lookup via Registry)"]
+        StationManager[StationManager]
         Server[Station.Server]
         Broadcaster[Station.Broadcaster]
         Distributor[Station.Distributor]
+        PubSub[Phoenix.PubSub]
     end
 
-    subgraph Channels
-        BC[BroadcasterChannel]
-        LC[ListenerChannel]
-    end
+    BroadcasterUI -->|"HTTP"| API
+    ListenerUI -->|"HTTP"| API
+    API --> StationManager
 
-    StationSup --> StSup
-    StSup --> Server
-    StSup --> Broadcaster
-    StSup --> Distributor
-    Broadcaster --> Distributor
-    Distributor --> PubSub
-    BC --> Broadcaster
-    LC --> PubSub
-    LC --> Server
-    Registry --> Server
-    Registry --> Broadcaster
-    Registry --> Distributor
-    Registry --> StSup
+    BroadcasterUI -->|"WS join + push audio_chunk"| BC
+    BC -->|"ingest_chunk"| Broadcaster
+    Broadcaster -->|"publish"| Distributor
+    BC -->|"get_status"| Server
+
+    ListenerUI -->|"WS join"| LC
+    LC -->|"get_buffer"| Distributor
+    LC -->|"increment_listeners / decrement_listeners"| Server
+    LC -->|"subscribe"| PubSub
+    Distributor -->|"broadcast"| PubSub
 ```
 
-## Registry
+## Fault Tolerance
 
-**OtpRadio.StationRegistry** — Unique keys so one process per station per role. Keys: `{:station_supervisor, station_id}`, `{:station_server, station_id}`, `{:station_broadcaster, station_id}`, `{:station_distributor, station_id}`. Channels and StationManager look up by key and call the process via its `via_tuple`.
+Supervision strategies determine what happens when a child process crashes. The app uses two strategies to isolate failures and restart only what’s needed.
 
-## StationSupervisor
+**OtpRadio.StationSupervisor** is a DynamicSupervisor with strategy `:one_for_one`. Each child is one `Station.Supervisor` (one station’s process tree).
 
-**DynamicSupervisor** — Starts no children at boot. `StationManager.create_station/0` derives the next id from the Registry (max existing numeric station id + 1) and adds a child spec for `OtpRadio.Station.Supervisor` with `[station_id: id, name: id]`. Strategy `:one_for_one`: one station crash does not restart others.
+- **When a child crashes:** Only that child is restarted. No other stations are affected.
+- **Effect:** A bug or crash in station "3" restarts only station "3". Stations "1", "2", "4", etc. keep running. This gives **fault isolation between stations**.
 
-## Station.Supervisor
+**OtpRadio.Station.Supervisor** (one per station) is a Supervisor with strategy `:rest_for_one`. Its children are started in order: Server, then Broadcaster, then Distributor.
 
-**Supervisor** — One per station, registered as `{:station_supervisor, station_id}`. Starts Server, Broadcaster, Distributor in that order. Strategy `:rest_for_one`: if Broadcaster dies, Broadcaster and Distributor restart; Server stays up.
+- **When a child crashes:** That child and every child started **after** it are restarted; children started **before** it stay up.
+- **Effect:** Server crash → all three restart; Broadcaster crash → Broadcaster and Distributor restart; Distributor crash → only Distributor restarts. Only processes with downstream dependencies are restarted.
 
-## Station.Server
+## Audio pipeline (Opus chunks)
 
-**GenServer** — Holds station id, display name, listener count. No dependency on Broadcaster or Distributor. Channels call `increment_listeners/1` and `decrement_listeners/1` on join/terminate; broadcaster channel calls `get_status/1` for listener_count replies.
+Real-time audio is sent over **WebSocket**, not HTTP. The broadcaster’s browser captures the microphone, encodes it as **Opus** (using the MediaRecorder API), and sends the encoded bytes in **chunks**. The server does not decode or re-encode; it stores and forwards those chunks to listeners.
 
-## Station.Broadcaster
+- **Chunk size:** The server accepts chunks between **100 bytes and 100 KB**. Anything smaller or larger is dropped and logged.
+- **Sequence and init chunk:** The server assigns a monotonic sequence number to each chunk. Chunk **0** is the **init chunk** (contains Opus decoder config). The server keeps it and sends it first to anyone who joins mid-stream so their decoder can start correctly.
+- **Late joiners:** The server keeps a ring buffer of the last **50** chunks per station. When a listener joins, they receive that buffer (init chunk first if present), then live chunks. There is no replay beyond those 50 chunks.
 
-**GenServer** — Receives audio chunks from the broadcaster channel, validates size, adds sequence number, and casts to this station’s Distributor. Handles `reset_sequence` so the Distributor buffer is cleared when a new stream starts.
+## WebSocket channels
 
-## Station.Distributor
+Clients open a WebSocket, then join a channel by subscribing to a topic. All streaming and control goes over that socket as named events.
 
-**GenServer** — Publishes each chunk to PubSub topic `station:<id>:audio`. Keeps a ring buffer of recent chunks; on `get_buffer` returns them (with init chunk when sequence 0 exists) so late-joining listeners get catch-up. Listener channel subscribes to the topic and pushes buffered then live chunks to the socket.
+**Topics.** The broadcaster joins `broadcaster:<station_id>`; the listener joins `listener:<station_id>`. The server fans out audio on an internal topic `station:<station_id>:audio`; clients never join that.
 
-## Channels
+**Broadcaster channel.** The client sends audio in an `audio_chunk` event: the chunk bytes as base64 in a `data` field. The server replies ok or invalid-data. The client can ask for the current listener count with `listener_count`; the server replies with a count.
 
-**BroadcasterChannel** — Topic `broadcaster:<station_id>`. Join looks up `{:station_broadcaster, station_id}`; if missing, join fails. Incoming `audio_chunk` is decoded and sent to that Broadcaster. `listener_count` is a request/reply that reads from Station.Server.
-
-**ListenerChannel** — Topic `listener:<station_id>`. Join looks up station; subscribes to `station:<id>:audio`. On `:after_join`, fetches buffer from Distributor, pushes each chunk, then increments listener count on Server. Receives `{:audio_chunk, chunk}` from PubSub and pushes to socket. On terminate, decrements listener count.
-
-## Default stations at startup
-
-After the supervision tree is up, `Application.start/2` calls `StationManager.create_station/0` four times. Each call derives the next id from the Registry (max existing numeric id + 1) and starts a station with that id as both id and display name.
+**Listener channel.** The server pushes each chunk in an `audio` event (base64 data, sequence number, size). New joiners get the recent buffer first, then live chunks; the init chunk (sequence 0) is sent first when present. Join succeeds only if the station exists; otherwise the client gets a reason such as station not found or invalid topic.
