@@ -22,7 +22,7 @@ defmodule OtpRadio.Application do
     result
   end
 
-  # Tell Phoenix to update the endpoint configuration whenever the application is updated.
+  # Update the endpoint config when the application is updated
   @impl true
   def config_change(changed, _new, removed) do
     OtpRadioWeb.Endpoint.config_change(changed, removed)
