@@ -1,16 +1,15 @@
 defmodule OtpRadio.Station.BroadcasterTest do
   use ExUnit.Case, async: false
 
-  @station_id "bc_test_#{System.unique_integer([:positive])}"
   @min_valid 100
   @max_valid 100_000
 
   setup do
-    assert {:ok, _} = OtpRadio.StationManager.create_station(@station_id, "BC Test")
-    on_exit(fn -> OtpRadio.StationManager.stop_station(@station_id) end)
-    broadcaster = OtpRadio.Station.Broadcaster.via_tuple(@station_id)
-    distributor = OtpRadio.Station.Distributor.via_tuple(@station_id)
-    {:ok, broadcaster: broadcaster, distributor: distributor}
+    assert {:ok, station_id} = OtpRadio.StationManager.create_station()
+    on_exit(fn -> OtpRadio.StationManager.stop_station(station_id) end)
+    broadcaster = OtpRadio.Station.Broadcaster.via_tuple(station_id)
+    distributor = OtpRadio.Station.Distributor.via_tuple(station_id)
+    {:ok, station_id: station_id, broadcaster: broadcaster, distributor: distributor}
   end
 
   describe "ingest_chunk/2" do

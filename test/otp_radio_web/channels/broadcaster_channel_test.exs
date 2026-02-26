@@ -1,18 +1,16 @@
 defmodule OtpRadioWeb.BroadcasterChannelTest do
   use OtpRadioWeb.ChannelCase, async: false
 
-  @station_id "broadcaster_channel_test_#{System.unique_integer([:positive])}"
-
   setup do
-    assert {:ok, _} = OtpRadio.StationManager.create_station(@station_id, "Broadcaster Test")
-    on_exit(fn -> OtpRadio.StationManager.stop_station(@station_id) end)
+    assert {:ok, station_id} = OtpRadio.StationManager.create_station()
+    on_exit(fn -> OtpRadio.StationManager.stop_station(station_id) end)
 
     {:ok, _, socket} =
       OtpRadioWeb.UserSocket
       |> socket("broadcaster_1", %{})
-      |> subscribe_and_join(OtpRadioWeb.BroadcasterChannel, "broadcaster:#{@station_id}")
+      |> subscribe_and_join(OtpRadioWeb.BroadcasterChannel, "broadcaster:#{station_id}")
 
-    %{socket: socket}
+    %{station_id: station_id, socket: socket}
   end
 
   describe "join broadcaster:*" do
@@ -51,8 +49,11 @@ defmodule OtpRadioWeb.BroadcasterChannelTest do
   end
 
   describe "handle_in listener_count" do
-    test "replies with current listener count from server", %{socket: socket} do
-      server = OtpRadio.Station.Server.via_tuple(@station_id)
+    test "replies with current listener count from server", %{
+      station_id: station_id,
+      socket: socket
+    } do
+      server = OtpRadio.Station.Server.via_tuple(station_id)
       expected = OtpRadio.Station.Server.get_status(server).listener_count
       ref = push(socket, "listener_count", %{})
       assert_reply ref, :ok, %{count: ^expected}

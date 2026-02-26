@@ -1,21 +1,20 @@
 defmodule OtpRadio.Station.ServerTest do
   use ExUnit.Case, async: false
 
-  @station_id "server_test_#{System.unique_integer([:positive])}"
-
   setup do
-    assert {:ok, _} = OtpRadio.StationManager.create_station(@station_id, "Server Test Station")
-    on_exit(fn -> OtpRadio.StationManager.stop_station(@station_id) end)
-    {:ok, server: OtpRadio.Station.Server.via_tuple(@station_id)}
+    assert {:ok, station_id} = OtpRadio.StationManager.create_station()
+    on_exit(fn -> OtpRadio.StationManager.stop_station(station_id) end)
+    {:ok, station_id: station_id, server: OtpRadio.Station.Server.via_tuple(station_id)}
   end
 
   describe "get_status/1" do
     test "returns map with station_id, name, status, listener_count, started_at", %{
+      station_id: station_id,
       server: server
     } do
       status = OtpRadio.Station.Server.get_status(server)
-      assert status.station_id == @station_id
-      assert status.name == "Server Test Station"
+      assert status.station_id == station_id
+      assert status.name == station_id
       assert status.status == :idle
       assert is_integer(status.listener_count) and status.listener_count >= 0
       assert %DateTime{} = status.started_at

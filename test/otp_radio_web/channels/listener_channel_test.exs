@@ -1,8 +1,6 @@
 defmodule OtpRadioWeb.ListenerChannelTest do
   use OtpRadioWeb.ChannelCase, async: false
 
-  @station_id "listener_channel_test_#{System.unique_integer([:positive])}"
-
   defp drain_pushes do
     receive do
       %Phoenix.Socket.Message{} -> drain_pushes()
@@ -12,9 +10,9 @@ defmodule OtpRadioWeb.ListenerChannelTest do
   end
 
   setup do
-    assert {:ok, _} = OtpRadio.StationManager.create_station(@station_id, "Listener Test")
-    on_exit(fn -> OtpRadio.StationManager.stop_station(@station_id) end)
-    %{station_id: @station_id}
+    assert {:ok, station_id} = OtpRadio.StationManager.create_station()
+    on_exit(fn -> OtpRadio.StationManager.stop_station(station_id) end)
+    %{station_id: station_id}
   end
 
   describe "join listener:*" do

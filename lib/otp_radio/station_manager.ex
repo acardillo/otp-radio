@@ -3,54 +3,55 @@ defmodule OtpRadio.StationManager do
   API for creating, stopping, and listing stations (dynamic OTP processes).
 
   Uses DynamicSupervisor to start stations on demand and Registry for lookup.
-  Does not start any stations at app boot; stations exist only after create_station/2.
+  Stations get an auto-incrementing id; call create_station/0 with no args.
   """
 
   require Logger
 
   @doc """
-  Creates a new station and starts its supervision tree.
+  Creates a new station with an auto-assigned id and starts its supervision tree.
 
-  Starts OtpRadio.Station.Supervisor under the DynamicSupervisor; that supervisor
-  starts Server, Broadcaster, and Distributor for this station_id.
-
-  ## Parameters
-
-    * `station_id` - Unique string id (e.g. "alpha"). Must be non-empty.
-    * `name` - Display name (e.g. "Alpha Station").
+  The next id is derived from the Registry (max existing numeric id + 1). The station's
+  display name is the id. Returns the new station_id so callers can use it.
 
   ## Returns
 
-    * `{:ok, pid}` - Station supervisor started.
-    * `{:error, {:already_started, pid}}` - A station with this station_id already exists.
-    * `{:error, reason}` - Invalid args or start_child failed.
-
-  ## Examples
-
-      StationManager.create_station("alpha", "Alpha Station")
-      StationManager.create_station("beta", "Beta Station")
+    * `{:ok, station_id}` - Station started; station_id is a string (e.g. "1").
+    * `{:error, reason}` - start_child failed.
   """
-  def create_station(station_id, name)
-      when is_binary(station_id) and byte_size(station_id) > 0 and is_binary(name) do
-    child_spec = {
-      OtpRadio.Station.Supervisor,
-      [station_id: station_id, name: name]
-    }
+  def create_station do
+    station_id = next_station_id_from_registry()
+    child_spec = {OtpRadio.Station.Supervisor, [station_id: station_id, name: station_id]}
 
     case DynamicSupervisor.start_child(OtpRadio.StationSupervisor, child_spec) do
-      {:ok, pid} ->
-        Logger.info("Station created: station_id=#{station_id} pid=#{inspect(pid)}")
-        {:ok, pid}
+      {:ok, _pid} ->
+        Logger.info("Station created: station_id=#{station_id}")
+        {:ok, station_id}
 
-      {:error, {:already_started, _pid}} = err ->
-        err
+      {:error, {:already_started, _pid}} ->
+        create_station()
 
       {:error, _reason} = err ->
         err
     end
   end
 
-  def create_station(_station_id, _name), do: {:error, :invalid_args}
+  defp next_station_id_from_registry do
+    OtpRadio.StationRegistry
+    |> Registry.select([{{:"$1", :"$2", :"$3"}, [], [:"$1"]}])
+    |> Enum.filter(fn key ->
+      is_tuple(key) and tuple_size(key) == 2 and elem(key, 0) == :station_supervisor
+    end)
+    |> Enum.map(fn {:station_supervisor, id} -> id end)
+    |> Enum.uniq()
+    |> Enum.map(&Integer.parse/1)
+    |> Enum.filter(&match?({_num, _}, &1))
+    |> Enum.map(fn {num, _} -> num end)
+    |> Enum.concat([0])
+    |> Enum.max()
+    |> Kernel.+(1)
+    |> Integer.to_string()
+  end
 
   @doc """
   Stops a station and all its processes (Server, Broadcaster, Distributor).
@@ -107,38 +108,4 @@ defmodule OtpRadio.StationManager do
   end
 
   def get_station(_), do: {:error, :invalid_args}
-
-  # ---------------------------------------------------------------------------
-  # TESTING SCRIPT (run in IEx to verify OTP patterns)
-  # ---------------------------------------------------------------------------
-  # Start app: mix phx.server (or iex -S mix phx.server)
-  #
-  # 1. No stations at startup:
-  #    OtpRadio.StationManager.list_stations()
-  #    # => []
-  #
-  # 2. Create stations A and B:
-  #    OtpRadio.StationManager.create_station("alpha", "Alpha Station")
-  #    OtpRadio.StationManager.create_station("beta", "Beta Station")
-  #    OtpRadio.StationManager.list_stations()
-  #    # => [%{id: "alpha", ...}, %{id: "beta", ...}]
-  #
-  # 3. Broadcast to alpha, listen on alpha (use web clients: broadcaster.html
-  #    with station_id "alpha", listener.html with Alpha Station selected).
-  #
-  # 4. Listen to beta without broadcasting => silence (works).
-  #
-  # 5. Crash station alpha's broadcaster (fault isolation):
-  #    [{pid, _}] = Registry.lookup(OtpRadio.StationRegistry, {:station_broadcaster, "alpha"})
-  #    Process.exit(pid, :kill)
-  #    # Alpha restarts (rest_for_one); beta unaffected. List stations again.
-  #
-  # 6. Stop station alpha:
-  #    OtpRadio.StationManager.stop_station("alpha")
-  #    OtpRadio.StationManager.list_stations()
-  #    # => [%{id: "beta", ...}]
-  #
-  # 7. Web client: listener dropdown shows stations from GET /api/stations;
-  #    switch between stations and listen.
-  # ---------------------------------------------------------------------------
 end

@@ -6,7 +6,7 @@ The app runs multiple independent stations. Each station is a small OTP tree:
 - **Broadcaster** - ingests chunks from the broadcaster client
 - **Distributor** PubSub topic and ring buffer for late joiners
 
-A _key registry_ is used so stations can resolve the right Broadcaster or Distributor. Stations are created from StationManager, Station Bootstrap creates default stations (1, 2, 3, 4)
+A _key registry_ is used so stations can resolve the right Broadcaster or Distributor. Stations are created via `StationManager.create_station/0` (no args); each station gets an auto-incrementing id. The application creates four default stations at startup.
 
 ## Audio Data flow
 
@@ -64,7 +64,7 @@ flowchart TD
 
 ## StationSupervisor
 
-**DynamicSupervisor** — Starts no children at boot. `StationManager.create_station/2` adds a child spec for `OtpRadio.Station.Supervisor` with `[station_id: id, name: name]`. Strategy `:one_for_one`: one station crash does not restart others.
+**DynamicSupervisor** — Starts no children at boot. `StationManager.create_station/0` derives the next id from the Registry (max existing numeric station id + 1) and adds a child spec for `OtpRadio.Station.Supervisor` with `[station_id: id, name: id]`. Strategy `:one_for_one`: one station crash does not restart others.
 
 ## Station.Supervisor
 
@@ -88,6 +88,6 @@ flowchart TD
 
 **ListenerChannel** — Topic `listener:<station_id>`. Join looks up station; subscribes to `station:<id>:audio`. On `:after_join`, fetches buffer from Distributor, pushes each chunk, then increments listener count on Server. Receives `{:audio_chunk, chunk}` from PubSub and pushes to socket. On terminate, decrements listener count.
 
-## Bootstrap
+## Default stations at startup
 
-**OtpRadio.StationBootstrap** — Called once from Application after the supervision tree is up. Creates a fixed set of stations (e.g. "1" through "4") via `StationManager.create_station/2`. Idempotent for already-existing ids.
+After the supervision tree is up, `Application.start/2` calls `StationManager.create_station/0` four times. Each call derives the next id from the Registry (max existing numeric id + 1) and starts a station with that id as both id and display name.

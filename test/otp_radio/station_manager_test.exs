@@ -1,40 +1,29 @@
 defmodule OtpRadio.StationManagerTest do
   use ExUnit.Case, async: false
 
-  describe "create_station/2" do
-    test "returns {:error, :invalid_args} for empty station_id" do
-      assert {:error, :invalid_args} = OtpRadio.StationManager.create_station("", "Some Name")
-    end
-
-    test "returns {:error, :invalid_args} for non-binary station_id" do
-      assert {:error, :invalid_args} = OtpRadio.StationManager.create_station(123, "Some Name")
-      assert {:error, :invalid_args} = OtpRadio.StationManager.create_station(nil, "Some Name")
-    end
-
-    test "returns {:error, :invalid_args} for non-binary name" do
-      assert {:error, :invalid_args} =
-               OtpRadio.StationManager.create_station("valid_id", 123)
+  describe "create_station/0" do
+    test "returns {:ok, station_id} with a string id" do
+      assert {:ok, station_id} = OtpRadio.StationManager.create_station()
+      assert is_binary(station_id)
+      OtpRadio.StationManager.stop_station(station_id)
     end
 
     test "starts a station and list_stations includes it" do
-      station_id = "test_station_#{System.unique_integer([:positive])}"
-      assert {:ok, _pid} = OtpRadio.StationManager.create_station(station_id, "Test Station")
+      assert {:ok, station_id} = OtpRadio.StationManager.create_station()
       stations = OtpRadio.StationManager.list_stations()
       found = Enum.find(stations, fn s -> s.id == station_id end)
       assert found != nil
-      assert found.name == "Test Station"
+      assert found.name == station_id
       assert is_integer(found.listener_count)
       OtpRadio.StationManager.stop_station(station_id)
     end
 
-    test "create_station with same id returns already_started" do
-      id = "dup_#{System.unique_integer([:positive])}"
-      assert {:ok, _} = OtpRadio.StationManager.create_station(id, "First")
-
-      assert {:error, {:already_started, _}} =
-               OtpRadio.StationManager.create_station(id, "Second")
-
-      OtpRadio.StationManager.stop_station(id)
+    test "each call returns a different id" do
+      assert {:ok, id1} = OtpRadio.StationManager.create_station()
+      assert {:ok, id2} = OtpRadio.StationManager.create_station()
+      assert id1 != id2
+      OtpRadio.StationManager.stop_station(id1)
+      OtpRadio.StationManager.stop_station(id2)
     end
   end
 
@@ -45,17 +34,22 @@ defmodule OtpRadio.StationManagerTest do
     end
 
     test "stops station and get_station returns not_found" do
-      id = "stop_#{System.unique_integer([:positive])}"
-      assert {:ok, sup_pid} = OtpRadio.StationManager.create_station(id, "To Stop")
+      assert {:ok, station_id} = OtpRadio.StationManager.create_station()
+
+      [{sup_pid, _}] =
+        Registry.lookup(OtpRadio.StationRegistry, {:station_supervisor, station_id})
+
       ref = Process.monitor(sup_pid)
-      assert :ok = OtpRadio.StationManager.stop_station(id)
+      assert :ok = OtpRadio.StationManager.stop_station(station_id)
       assert_receive {:DOWN, ^ref, :process, ^sup_pid, _reason}
-      assert {:error, :not_found} = OtpRadio.StationManager.get_station(id)
+      # Allow Registry to process DOWN and remove keys
+      _ = :sys.get_state(Process.whereis(OtpRadio.StationRegistry))
+      assert {:error, :not_found} = OtpRadio.StationManager.get_station(station_id)
     end
   end
 
   describe "list_stations/0" do
-    test "initially can be empty or have other stations" do
+    test "returns a list (possibly empty or with default stations)" do
       stations = OtpRadio.StationManager.list_stations()
       assert is_list(stations)
     end
@@ -63,8 +57,7 @@ defmodule OtpRadio.StationManagerTest do
 
   describe "get_station/1" do
     test "returns {:ok, pid} for existing station" do
-      station_id = "get_station_#{System.unique_integer([:positive])}"
-      assert {:ok, _} = OtpRadio.StationManager.create_station(station_id, "Test")
+      assert {:ok, station_id} = OtpRadio.StationManager.create_station()
       assert {:ok, pid} = OtpRadio.StationManager.get_station(station_id)
       assert is_pid(pid)
       OtpRadio.StationManager.stop_station(station_id)

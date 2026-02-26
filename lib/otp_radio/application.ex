@@ -1,7 +1,7 @@
 defmodule OtpRadio.Application do
-  # See https://hexdocs.pm/elixir/Application.html
-  # for more information on OTP Applications
-  @moduledoc false
+  @moduledoc """
+  Application entry point for OTP Radio.
+  """
 
   use Application
 
@@ -23,7 +23,9 @@ defmodule OtpRadio.Application do
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: OtpRadio.Supervisor]
     result = Supervisor.start_link(children, opts)
-    OtpRadio.StationBootstrap.bootstrap()
+
+    for _ <- 1..4, do: OtpRadio.StationManager.create_station()
+
     result
   end
 

@@ -1,8 +1,6 @@
 defmodule OtpRadio.Station.SupervisorTest do
   use ExUnit.Case, async: false
 
-  @station_id "sup_test_#{System.unique_integer([:positive])}"
-
   defp child_pid(children, id) do
     case Enum.find(children, fn {cid, _pid, _t, _m} -> cid == id end) do
       {_id, pid, _type, _modules} when is_pid(pid) -> pid
@@ -11,10 +9,10 @@ defmodule OtpRadio.Station.SupervisorTest do
   end
 
   setup do
-    assert {:ok, sup_pid} = OtpRadio.StationManager.create_station(@station_id, "Sup Test")
-    on_exit(fn -> OtpRadio.StationManager.stop_station(@station_id) end)
-    via = {:via, Registry, {OtpRadio.StationRegistry, {:station_supervisor, @station_id}}}
-    {:ok, sup_pid: sup_pid, via: via}
+    assert {:ok, station_id} = OtpRadio.StationManager.create_station()
+    [{sup_pid, _}] = Registry.lookup(OtpRadio.StationRegistry, {:station_supervisor, station_id})
+    on_exit(fn -> OtpRadio.StationManager.stop_station(station_id) end)
+    {:ok, station_id: station_id, sup_pid: sup_pid}
   end
 
   describe "Station.Supervisor rest_for_one" do

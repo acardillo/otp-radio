@@ -1,12 +1,10 @@
 defmodule OtpRadio.Station.DistributorTest do
   use ExUnit.Case, async: false
 
-  @station_id "dist_test_#{System.unique_integer([:positive])}"
-
   setup do
-    assert {:ok, _} = OtpRadio.StationManager.create_station(@station_id, "Dist Test")
-    on_exit(fn -> OtpRadio.StationManager.stop_station(@station_id) end)
-    distributor = OtpRadio.Station.Distributor.via_tuple(@station_id)
+    assert {:ok, station_id} = OtpRadio.StationManager.create_station()
+    on_exit(fn -> OtpRadio.StationManager.stop_station(station_id) end)
+    distributor = OtpRadio.Station.Distributor.via_tuple(station_id)
     {:ok, distributor: distributor}
   end
 
