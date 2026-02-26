@@ -9,8 +9,6 @@ defmodule OtpRadio.Application do
   def start(_type, _args) do
     result = Supervisor.start_link(
       [
-        OtpRadioWeb.Telemetry,
-        {DNSCluster, query: Application.get_env(:otp_radio, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: OtpRadio.PubSub},
         {Registry, keys: :unique, name: OtpRadio.StationRegistry},
         OtpRadio.StationSupervisor,
